@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 
-export default function Home({ addToCart, isAdmin, session }) {
+export default function Home({ isAdmin, session }) { // Inalis natin ang addToCart dito dahil via Details na ang flow
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,9 +42,8 @@ export default function Home({ addToCart, isAdmin, session }) {
   return (
     <div className="bg-[#0a0b0d] min-h-screen">
       
-      
+      {/* Hero Section */}
       <section className="relative h-[70vh] flex items-center justify-center overflow-hidden border-b border-white/5">
-        
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-orange-600/20 blur-[150px] rounded-full animate-pulse" />
         
         <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
@@ -73,14 +72,11 @@ export default function Home({ addToCart, isAdmin, session }) {
         </div>
       </section>
 
-      
       <div id="inventory" className="max-w-7xl mx-auto px-6 py-20">
         
-        
+        {/* Search & Categories */}
         <div className="sticky top-24 z-[50] mb-16 space-y-6">
           <div className="bg-[#111216]/80 backdrop-blur-2xl border border-white/5 p-4 rounded-[2.5rem] shadow-2xl flex flex-col lg:flex-row gap-4 items-center">
-            
-            
             <div className="relative w-full lg:w-96 group">
               <input 
                 type="text" 
@@ -94,7 +90,6 @@ export default function Home({ addToCart, isAdmin, session }) {
               </svg>
             </div>
 
-            
             <div className="flex gap-2 overflow-x-auto w-full no-scrollbar">
               {categories.map((cat) => (
                 <button
@@ -113,7 +108,6 @@ export default function Home({ addToCart, isAdmin, session }) {
           </div>
         </div>
 
-        
         {loading ? (
           <div className="flex flex-col items-center justify-center py-40">
             <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mb-6" />
@@ -121,53 +115,81 @@ export default function Home({ addToCart, isAdmin, session }) {
           </div>
         ) : filteredProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-            {filteredProducts.map((product) => (
-              <div key={product.id} className="group relative">
-                
-                <div className="bg-[#111216] rounded-[3rem] border border-white/5 overflow-hidden transition-all duration-500 group-hover:border-orange-600/50 shadow-2xl">
-                  
-                  
-                  <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden">
-                    <img 
-                      src={product.image_url} 
-                      alt={product.name} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            {filteredProducts.map((product) => {
+              const isOutOfStock = product.stock <= 0;
+              
+              return (
+                <div key={product.id} className={`group relative ${isOutOfStock ? 'opacity-70' : ''}`}>
+                  <div className={`bg-[#111216] rounded-[3rem] border overflow-hidden transition-all duration-500 shadow-2xl ${isOutOfStock ? 'border-red-900/20' : 'border-white/5 group-hover:border-orange-600/50'}`}>
                     
-                    
-                    <div className="absolute top-6 left-6">
-                       <span className="text-[8px] font-black uppercase tracking-[0.3em] text-white bg-orange-600 px-4 py-2 rounded-full shadow-xl">
-                        {product.category}
-                      </span>
-                    </div>
-                  </Link>
+                    <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-black">
+                      <img 
+                        src={product.image_url} 
+                        alt={product.name} 
+                        className={`w-full h-full object-cover transition-transform duration-700 ${isOutOfStock ? 'grayscale opacity-30' : 'group-hover:scale-110'}`} 
+                      />
+                      
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="border-2 border-red-600 text-red-600 px-4 py-1 text-[10px] font-black uppercase italic -rotate-12 tracking-[0.2em] bg-black/60 backdrop-blur-sm">
+                            Sold Out
+                          </span>
+                        </div>
+                      )}
 
-                  
-                  <div className="p-8">
-                    <Link to={`/product/${product.id}`}>
-                      <h3 className="text-xl font-black italic uppercase tracking-tighter text-white mb-2 group-hover:text-orange-600 transition truncate">
-                        {product.name}
-                      </h3>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      <div className="absolute top-6 left-6">
+                         <span className={`text-[8px] font-black uppercase tracking-[0.3em] px-4 py-2 rounded-full shadow-xl ${isOutOfStock ? 'bg-gray-800 text-gray-500' : 'bg-orange-600 text-white'}`}>
+                          {product.category}
+                        </span>
+                      </div>
                     </Link>
-                    <div className="flex justify-between items-end mb-8">
-                      <p className="text-3xl font-black italic text-white/90 tracking-tighter">₱{product.price.toLocaleString()}</p>
-                      {isAdmin && <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest">STOCK: OK</span>}
-                    </div>
 
-                    <button 
-                      onClick={() => addToCart(product)}
-                      className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-orange-600 hover:text-white transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-3"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                      </svg>
-                      Acquire Gear
-                    </button>
+                    <div className="p-8">
+                      <Link to={`/product/${product.id}`}>
+                        <h3 className={`text-xl font-black italic uppercase tracking-tighter mb-2 transition truncate ${isOutOfStock ? 'text-gray-600' : 'text-white group-hover:text-orange-600'}`}>
+                          {product.name}
+                        </h3>
+                      </Link>
+                      
+                      <div className="flex justify-between items-end mb-8">
+                        <p className={`text-3xl font-black italic tracking-tighter ${isOutOfStock ? 'text-gray-700' : 'text-white/90'}`}>
+                          ₱{product.price.toLocaleString()}
+                        </p>
+                        {isAdmin && (
+                          <span className={`text-[8px] font-black uppercase tracking-widest ${product.stock <= 5 ? 'text-orange-600 animate-pulse' : 'text-gray-600'}`}>
+                            STOCK: {product.stock}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* BUTTON CHANGED: From AddToCart to View Details Link */}
+                      <Link 
+                        to={`/product/${product.id}`}
+                        className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all transform active:scale-95 shadow-xl flex items-center justify-center gap-3 ${
+                          isOutOfStock 
+                          ? 'bg-gray-900 text-gray-700 cursor-not-allowed border border-white/5 pointer-events-none' 
+                          : 'bg-white text-black hover:bg-orange-600 hover:text-white'
+                        }`}
+                      >
+                        {isOutOfStock ? (
+                          'OUT_OF_STOCK'
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            View Details
+                          </>
+                        )}
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-32 bg-white/[0.02] rounded-[4rem] border border-dashed border-white/10">
@@ -179,7 +201,6 @@ export default function Home({ addToCart, isAdmin, session }) {
         )}
       </div>
 
-      
       <footer className="py-20 border-t border-white/5 text-center">
         <p className="text-[8px] font-black uppercase tracking-[1em] text-gray-800">
           PedalStreet Tactical Hub &bull; 2024 Deployment

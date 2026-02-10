@@ -11,10 +11,16 @@ export default function Admin() {
   const [orders, setOrders] = useState([]);
   const [vouchers, setVouchers] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  
+  // Forms
   const [form, setForm] = useState({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
   const [vForm, setVForm] = useState({ code: '', discount_percent: '' });
+  
+  // UI States
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -42,6 +48,7 @@ export default function Admin() {
           profiles:user_id (first_name, last_name, username),
           order_items (
             quantity, price, product_id,
+            selected_size, selected_color,
             products!order_items_product_id_fkey (name, image_url)
           )
         `)
@@ -54,6 +61,41 @@ export default function Admin() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- QUICK ACTIONS ---
+
+  // Bagong function para sa mabilisang pag-update ng stock
+  const adjustStock = async (id, currentStock, amount) => {
+    const newStock = Math.max(0, currentStock + amount);
+    const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
+    if (!error) fetchProducts();
+  };
+
+  const updateOrderStatus = async (id, status) => {
+    const orderToUpdate = orders.find(o => o.id === id);
+    
+    // Inventory Management Logic
+    if (status === 'SHIPPED' && orderToUpdate.status === 'PENDING') {
+      for (const item of orderToUpdate.order_items) {
+        if (item.product_id) {
+          const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+          if (prod) await supabase.from('products').update({ stock: Math.max(0, prod.stock - item.quantity) }).eq('id', item.product_id);
+        }
+      }
+    }
+
+    if (status === 'CANCELLED' && (orderToUpdate.status === 'SHIPPED' || orderToUpdate.status === 'PENDING')) {
+        for (const item of orderToUpdate.order_items) {
+          if (item.product_id) {
+            const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+            if (prod) await supabase.from('products').update({ stock: prod.stock + item.quantity }).eq('id', item.product_id);
+          }
+        }
+    }
+
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+    if (!error) { fetchOrders(); fetchProducts(); }
   };
 
   const printWaybill = (order) => {
@@ -70,6 +112,9 @@ export default function Admin() {
       <tr>
         <td style="padding: 15px; border-bottom: 1px solid #333;">
           <div style="font-weight: 900; font-style: italic; text-transform: uppercase;">${item.products?.name || 'Item deleted'}</div>
+          <div style="font-size: 11px; margin-top: 5px; font-weight: bold; color: #555;">
+            SPEC: ${item.selected_size || 'N/A'} | ${item.selected_color || 'N/A'}
+          </div>
         </td>
         <td style="padding: 15px; border-bottom: 1px solid #333; text-align: center;">${item.quantity}</td>
         <td style="padding: 15px; border-bottom: 1px solid #333; text-align: right;">₱${Number(item.price).toLocaleString()}</td>
@@ -129,20 +174,6 @@ export default function Admin() {
     }
   };
 
-  const updateOrderStatus = async (id, status) => {
-    const orderToUpdate = orders.find(o => o.id === id);
-    if (status === 'SHIPPED' && orderToUpdate.status === 'PENDING') {
-      for (const item of orderToUpdate.order_items) {
-        if (item.product_id) {
-          const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-          if (prod) await supabase.from('products').update({ stock: prod.stock - item.quantity }).eq('id', item.product_id);
-        }
-      }
-    }
-    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
-    if (!error) { fetchOrders(); fetchProducts(); }
-  };
-
   const deleteOrder = async (id) => {
     if (confirm("🚨 SCRAP THIS ORDER RECORD? This cannot be undone.")) {
       const { error } = await supabase.from('orders').delete().eq('id', id);
@@ -152,16 +183,30 @@ export default function Admin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const action = editingId ? supabase.from('products').update(form).eq('id', editingId) : supabase.from('products').insert([form]);
+    const payload = {
+      ...form,
+      price: Number(form.price),
+      stock: Number(form.stock)
+    };
+
+    const action = editingId 
+      ? supabase.from('products').update(payload).eq('id', editingId) 
+      : supabase.from('products').insert([payload]);
+
     const { error } = await action;
+    
     if (!error) {
       alert(editingId ? "UNIT UPDATED ⚡" : "GEAR DEPLOYED ⚡");
       setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
       setEditingId(null);
       fetchProducts();
+    } else {
+      console.error("Deploy Error:", error.message);
+      alert("DEPLOYMENT FAILED: Check Console");
     }
   };
 
+  // --- STATS COMPUTATION ---
   const totalRevenue = orders.filter(o => o.status === 'DELIVERED').reduce((a, b) => a + Number(b.total_amount), 0);
   const lowStockItems = products.filter(p => p.stock <= 5);
   const salesData = orders.filter(o => o.status === 'DELIVERED').slice(0, 10).map(o => ({
@@ -172,6 +217,7 @@ export default function Admin() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-[#050505] text-white">
       
+      {/* SIDEBAR */}
       <div className="lg:w-72 bg-[#0d0e12] border-r border-white/5 p-10 flex flex-col justify-between">
         <div className="space-y-12">
           <div>
@@ -209,6 +255,7 @@ export default function Admin() {
 
       <div className="flex-1 p-8 lg:p-16 overflow-y-auto">
         
+        {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div className="space-y-12 animate-in fade-in duration-700">
             <header>
@@ -229,21 +276,15 @@ export default function Admin() {
                 </p>
                 <h3 className="text-5xl font-black italic text-white tracking-tighter">{vouchers.length} Units</h3>
               </div>
-              <div className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 group hover:border-red-500/30 transition-all shadow-2xl">
+              <div className={`bg-[#0d0e12] p-10 rounded-[3rem] border transition-all shadow-2xl ${lowStockItems.length > 0 ? 'border-red-500/50 animate-pulse' : 'border-white/5'}`}>
                 <p className="text-[9px] font-black text-gray-500 uppercase mb-4 tracking-widest flex items-center gap-2">
-                    <span className="w-2 h-2 bg-red-500 rounded-full"></span> Critical Stock
+                    <span className={`w-2 h-2 rounded-full ${lowStockItems.length > 0 ? 'bg-red-500 animate-ping' : 'bg-red-500'}`}></span> Critical Stock
                 </p>
                 <h3 className={`text-5xl font-black italic tracking-tighter ${lowStockItems.length > 0 ? 'text-red-500' : 'text-white'}`}>{lowStockItems.length}</h3>
               </div>
             </div>
 
             <div className="bg-[#0d0e12] p-12 rounded-[4rem] border border-white/5 shadow-2xl">
-                <div className="flex justify-between items-center mb-12">
-                    <h2 className="text-xs font-black uppercase tracking-[0.4em] text-gray-500 italic">Financial Waveform</h2>
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-2 text-[9px] font-black uppercase text-orange-600"><span className="w-3 h-3 bg-orange-600 rounded-full"></span> Revenue</div>
-                    </div>
-                </div>
                 <div className="h-96">
                  <ResponsiveContainer width="100%" height="100%">
                    <AreaChart data={salesData}>
@@ -266,86 +307,107 @@ export default function Admin() {
           </div>
         )}
 
-        
+        {/* INVENTORY TAB */}
         {activeTab === 'inventory' && (
-          <div className="grid lg:grid-cols-12 gap-12 animate-in slide-in-from-bottom-10 duration-700">
-              <div className="lg:col-span-4">
-                <form onSubmit={handleSubmit} className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 sticky top-10 shadow-2xl">
-                  <h2 className="text-2xl font-black mb-8 uppercase italic flex items-center gap-3">
-                    <span className="w-2 h-8 bg-orange-600 inline-block"></span>
-                    {editingId ? "Modify Unit" : "Deploy Gear"}
-                  </h2>
-                  <div className="space-y-5">
-                    <div className="group">
-                        <p className="text-[8px] font-black text-gray-600 uppercase mb-2 tracking-widest px-2">Nomenclature</p>
-                        <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs outline-none focus:border-orange-600 transition-all font-bold" placeholder="Product Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="group">
-                        <p className="text-[8px] font-black text-gray-600 uppercase mb-2 tracking-widest px-2">Valuation</p>
-                        <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Price" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
-                      </div>
-                      <div className="group">
-                        <p className="text-[8px] font-black text-gray-600 uppercase mb-2 tracking-widest px-2">Volume</p>
-                        <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Stock" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required />
-                      </div>
-                    </div>
-                    <select className="w-full bg-black border border-white/5 p-5 rounded-2xl text-gray-400 text-xs font-bold outline-none appearance-none cursor-pointer" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required>
-                      <option value="">Select Category</option>
-                      <option value="ROAD">ROAD OPS</option>
-                      <option value="MTB">MTB OPS</option>
-                      <option value="PARTS">COMPONENTS</option>
-                      <option value="GEAR">TACTICAL GEAR</option>
-                    </select>
-                    <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none" placeholder="Satellite Image URL" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} required />
-                    <textarea className="w-full bg-black border border-white/5 p-5 rounded-2xl h-32 text-white text-xs font-bold outline-none" placeholder="Technical Specifications" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
-                    
-                    <button className="w-full bg-white text-black p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-orange-600 hover:text-white transition-all transform active:scale-95 shadow-xl">
-                        {editingId ? "Update Asset" : "Initialize Deployment"}
-                    </button>
-                    {editingId && <button onClick={() => {setEditingId(null); setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });}} className="w-full text-[9px] text-gray-600 font-black uppercase tracking-widest mt-4">Abort Mission</button>}
-                  </div>
-                </form>
-              </div>
+          <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-700">
+            {/* Search Gear */}
+            <div className="relative">
+              <input 
+                className="w-full bg-[#0d0e12] border border-white/10 p-6 pl-14 rounded-3xl text-white text-[10px] font-black uppercase tracking-widest outline-none focus:border-orange-600 transition-all shadow-2xl"
+                placeholder="SCAN GEAR STASH (NAME/CATEGORY)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <span className="absolute left-6 top-6 text-orange-600">🔍</span>
+            </div>
 
-              <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                 <table className="w-full text-left">
-                   <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
-                     <tr><th className="p-10">Asset</th><th className="p-10">Inventory</th><th className="p-10 text-right">Actions</th></tr>
-                   </thead>
-                   <tbody className="divide-y divide-white/5">
-                     {products.map(p => (
-                       <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
-                         <td className="p-10 flex items-center gap-6">
-                           <div className="relative w-20 h-20 overflow-hidden rounded-2xl border border-white/5">
-                                <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                           </div>
-                           <div>
-                               <p className="text-[8px] font-black text-orange-600 mb-1 tracking-widest uppercase">{p.category}</p>
-                               <p className="font-black italic uppercase text-lg text-white">{p.name}</p>
-                               <p className="text-gray-500 font-bold text-xs mt-1">₱{Number(p.price).toLocaleString()}</p>
-                           </div>
-                         </td>
-                         <td className="p-10">
-                            <span className={`px-4 py-2 rounded-full text-[10px] font-black italic border ${p.stock <= 5 ? 'border-red-500/50 text-red-500 bg-red-500/10' : 'border-green-500/50 text-green-500 bg-green-500/10'}`}>
-                                {p.stock} UNITS_AVAIL
-                            </span>
-                         </td>
-                         <td className="p-10 text-right">
-                           <button onClick={() => {setEditingId(p.id); setForm(p);}} className="text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors mr-6">Modify</button>
-                           <button onClick={async () => {if(confirm("Scrap?")) {await supabase.from('products').delete().eq('id', p.id); fetchProducts();}}} className="text-[10px] font-black uppercase text-red-600/50 hover:text-red-600 transition-colors">Scrap</button>
-                         </td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-              </div>
+            <div className="grid lg:grid-cols-12 gap-12">
+                <div className="lg:col-span-4">
+                  <form onSubmit={handleSubmit} className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 sticky top-10 shadow-2xl">
+                    <h2 className="text-2xl font-black mb-8 uppercase italic flex items-center gap-3">
+                      <span className="w-2 h-8 bg-orange-600 inline-block"></span>
+                      {editingId ? "Modify Unit" : "Deploy Gear"}
+                    </h2>
+                    <div className="space-y-5">
+                      <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs outline-none focus:border-orange-600 transition-all font-bold" placeholder="Product Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+                      <div className="grid grid-cols-2 gap-4">
+                          <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Price" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
+                          <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Stock" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required />
+                      </div>
+                      <select className="w-full bg-black border border-white/5 p-5 rounded-2xl text-gray-400 text-xs font-bold outline-none cursor-pointer" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required>
+                        <option value="">Select Category</option>
+                        <option value="ROAD">ROAD OPS</option>
+                        <option value="MTB">MTB OPS</option>
+                        <option value="PARTS">COMPONENTS</option>
+                        <option value="GEAR">TACTICAL GEAR</option>
+                      </select>
+                      <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none" placeholder="Satellite Image URL" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} required />
+                      <textarea className="w-full bg-black border border-white/5 p-5 rounded-2xl h-32 text-white text-xs font-bold outline-none" placeholder="Technical Specifications" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+                      <button className="w-full bg-white text-black p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-orange-600 hover:text-white transition-all shadow-xl">
+                          {editingId ? "Update Asset" : "Initialize Deployment"}
+                      </button>
+                      {editingId && <button onClick={() => {setEditingId(null); setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });}} className="w-full text-[9px] text-gray-600 font-black uppercase tracking-widest mt-4 underline">Abort Mission</button>}
+                    </div>
+                  </form>
+                </div>
+
+                <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                   <table className="w-full text-left">
+                     <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
+                       <tr><th className="p-10">Asset</th><th className="p-10">Inventory Control</th><th className="p-10 text-right">Actions</th></tr>
+                     </thead>
+                     <tbody className="divide-y divide-white/5">
+                       {products
+                       .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                       .map(p => (
+                         <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
+                           <td className="p-10 flex items-center gap-6">
+                              <div className="relative w-20 h-20 overflow-hidden rounded-2xl border border-white/5 bg-black">
+                                  <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-80" />
+                              </div>
+                              <div>
+                                  <p className="text-[8px] font-black text-orange-600 mb-1 tracking-widest uppercase">{p.category}</p>
+                                  <p className="font-black italic uppercase text-lg text-white">{p.name}</p>
+                                  <p className="text-gray-500 font-bold text-xs">₱{Number(p.price).toLocaleString()}</p>
+                              </div>
+                           </td>
+                           <td className="p-10">
+                              {/* QUICK STOCK ADJUSTER */}
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => adjustStock(p.id, p.stock, -1)} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all font-black">-</button>
+                                <span className={`min-w-[60px] text-center px-4 py-2 rounded-full text-[10px] font-black italic border ${p.stock <= 5 ? 'border-red-500 text-red-500 bg-red-500/10 animate-pulse' : 'border-green-500/50 text-green-500 bg-green-500/10'}`}>
+                                    {p.stock} U
+                                </span>
+                                <button onClick={() => adjustStock(p.id, p.stock, 1)} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-green-600 hover:text-white transition-all font-black">+</button>
+                              </div>
+                           </td>
+                           <td className="p-10 text-right">
+                             <button onClick={() => {setEditingId(p.id); setForm(p);}} className="text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors mr-6">Modify</button>
+                             <button onClick={async () => {if(confirm("Scrap?")) {await supabase.from('products').delete().eq('id', p.id); fetchProducts();}}} className="text-[10px] font-black uppercase text-red-600/50 hover:text-red-600 transition-colors">Scrap</button>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                </div>
+            </div>
           </div>
         )}
 
-        
+        {/* ORDERS TAB */}
         {activeTab === 'orders' && (
           <div className="space-y-10 animate-in slide-in-from-right-10 duration-700">
+            {/* Search Orders */}
+            <div className="relative">
+              <input 
+                className="w-full bg-[#0d0e12] border border-white/10 p-6 pl-14 rounded-3xl text-white text-[10px] font-black uppercase tracking-widest outline-none focus:border-orange-600 shadow-2xl"
+                placeholder="SCAN MANIFEST ID OR RECIPIENT..."
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+              />
+              <span className="absolute left-6 top-6 text-orange-600 font-black">⚡</span>
+            </div>
+
             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
               {['ALL', 'PENDING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((s) => (
                 <button 
@@ -359,100 +421,60 @@ export default function Admin() {
             </div>
 
             <div className="grid grid-cols-1 gap-10">
-              {orders.filter(o => filterStatus === 'ALL' || o.status === filterStatus).map((order) => (
+              {orders
+              .filter(o => filterStatus === 'ALL' || o.status === filterStatus)
+              .filter(o => o.id.toLowerCase().includes(orderSearch.toLowerCase()) || `${o.profiles?.first_name} ${o.profiles?.last_name}`.toLowerCase().includes(orderSearch.toLowerCase()))
+              .map((order) => (
                 <div key={order.id} className="bg-[#0d0e12] rounded-[4rem] border border-white/5 overflow-hidden shadow-2xl relative">
-                  
-                  
-                  <div className={`h-2 w-full ${
-                    order.status === 'DELIVERED' ? 'bg-green-500' : 
-                    order.status === 'CANCELLED' ? 'bg-red-600' : 
-                    'bg-orange-600'
-                  }`}></div>
+                  <div className={`h-2 w-full ${order.status === 'DELIVERED' ? 'bg-green-500' : order.status === 'CANCELLED' ? 'bg-red-600' : 'bg-orange-600'}`}></div>
 
                   <div className="p-10 flex flex-col md:flex-row justify-between md:items-center gap-8 border-b border-white/5">
-                    <div className="flex items-center gap-6">
-                        <div>
-                            <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Logistics Status</p>
-                            <span className={`text-[10px] font-black px-6 py-2 rounded-full uppercase italic ${
-                              order.status === 'DELIVERED' ? 'bg-green-600/10 text-green-500 border border-green-500/20' : 
-                              order.status === 'CANCELLED' ? 'bg-red-600/10 text-red-600 border border-red-600/20' : 
-                              'bg-orange-600/10 text-orange-600 border border-orange-600/20'
-                            }`}>
-                                {order.status}
-                            </span>
-                        </div>
-                      {order.promo_applied && (
-                        <div>
-                            <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Promo Applied</p>
-                            <span className="bg-blue-600/10 text-blue-400 border border-blue-600/20 text-[10px] font-black px-4 py-2 rounded-full uppercase italic">🎫 {order.promo_applied}</span>
-                        </div>
-                      )}
+                    <div>
+                        <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Logistics Status</p>
+                        <span className={`text-[10px] font-black px-6 py-2 rounded-full uppercase italic ${
+                          order.status === 'DELIVERED' ? 'bg-green-600/10 text-green-500 border border-green-500/20' : 
+                          order.status === 'CANCELLED' ? 'bg-red-600/10 text-red-600 border border-red-600/20' : 
+                          'bg-orange-600/10 text-orange-600 border border-orange-600/20 animate-pulse'
+                        }`}>
+                            {order.status}
+                        </span>
                     </div>
                     
                     <div className="flex flex-wrap gap-3">
-                      
                       {order.status !== 'CANCELLED' && (
                         <>
-                          <button onClick={() => printWaybill(order)} className="bg-blue-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl hover:bg-white hover:text-black transition-all">
-                            Print Manifest
-                          </button>
-                          
+                          <button onClick={() => printWaybill(order)} className="bg-blue-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl hover:bg-white hover:text-black transition-all">Print Manifest</button>
                           {order.status === 'PENDING' && (
-                            <button onClick={() => updateOrderStatus(order.id, 'SHIPPED')} className="bg-white text-black text-[9px] font-black uppercase px-8 py-4 rounded-2xl hover:bg-orange-600 hover:text-white transition-all">
-                              Initialize Shipment
-                            </button>
+                            <button onClick={() => updateOrderStatus(order.id, 'SHIPPED')} className="bg-white text-black text-[9px] font-black uppercase px-8 py-4 rounded-2xl hover:bg-orange-600 hover:text-white transition-all">Initialize Shipment</button>
                           )}
-                          
                           {order.status === 'SHIPPED' && (
-                            <button onClick={() => updateOrderStatus(order.id, 'DELIVERED')} className="bg-green-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl transition-all">
-                              Mark Finalized
-                            </button>
+                            <button onClick={() => updateOrderStatus(order.id, 'DELIVERED')} className="bg-green-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl transition-all">Mark Finalized</button>
+                          )}
+                          {(order.status === 'PENDING' || order.status === 'SHIPPED') && (
+                            <button onClick={() => updateOrderStatus(order.id, 'CANCELLED')} className="bg-red-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl transition-all">Abort Dispatch</button>
                           )}
                         </>
                       )}
-
-                      
-                      {(order.status === 'CANCELLED' || order.status === 'DELIVERED') ? (
-                        <button 
-                          onClick={() => deleteOrder(order.id)} 
-                          className="bg-red-600 text-white text-[9px] font-black uppercase px-8 py-4 rounded-2xl hover:bg-red-700 transition-all flex items-center gap-2"
-                        >
-                          <span>🗑️</span> Scrap Record
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => deleteOrder(order.id)} 
-                          className="w-12 h-12 flex items-center justify-center bg-red-600/10 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all"
-                        >
-                          🗑️
-                        </button>
-                      )}
+                      <button onClick={() => deleteOrder(order.id)} className="bg-red-600/10 text-red-600 w-12 h-12 flex items-center justify-center rounded-2xl hover:bg-red-600 hover:text-white transition-all">🗑️</button>
                     </div>
                   </div>
 
                   <div className={`grid md:grid-cols-3 divide-x divide-white/5 ${order.status === 'CANCELLED' ? 'opacity-40 grayscale' : ''}`}>
                     <div className="p-12">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic flex items-center gap-2">
-                         <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Recipient Info
-                       </p>
+                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic flex items-center gap-2">Recipient Info</p>
                        <h3 className="text-3xl font-black italic uppercase leading-none text-white">{order.profiles?.first_name} {order.profiles?.last_name}</h3>
-                       <p className="text-[10px] text-gray-500 mt-6 font-bold leading-relaxed tracking-wider">
-                           📍 {order.address}<br/>
-                           📞 {order.phone}
-                       </p>
+                       <p className="text-[10px] text-gray-500 mt-6 font-bold leading-relaxed">📍 {order.address}<br/>📞 {order.phone}</p>
                     </div>
 
                     <div className="p-12">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic flex items-center gap-2">
-                         <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Unit Manifest
-                       </p>
+                       <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic">Unit Manifest</p>
                        <div className="space-y-4">
                         {order.order_items?.map((item, idx) => (
                           <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-2xl border border-white/5">
                             <img src={item.products?.image_url} className="w-12 h-12 object-cover rounded-xl" />
                             <div>
                                 <p className="text-[10px] font-black uppercase italic text-white leading-tight">{item.products?.name}</p>
-                                <p className="text-[9px] font-bold text-orange-600 uppercase tracking-widest mt-1">Qty: {item.quantity}</p>
+                                <p className="text-[9px] font-bold text-orange-600 uppercase mt-1">Qty: {item.quantity}</p>
                             </div>
                           </div>
                         ))}
@@ -460,44 +482,27 @@ export default function Admin() {
                     </div>
 
                     <div className="p-12 bg-white/[0.01]">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic">Settlement Total</p>
+                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic">Settlement</p>
                        <p className="text-6xl font-black italic tracking-tighter text-white">₱{Number(order.total_amount).toLocaleString()}</p>
-                       <p className="text-[9px] font-black text-gray-700 uppercase mt-4 tracking-widest">Confirmed via {order.payment_method}</p>
+                       <p className="text-[9px] font-black text-gray-700 uppercase mt-4">{order.payment_method}</p>
                     </div>
                   </div>
-                  
-                  {order.status === 'CANCELLED' && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="text-[120px] font-black italic text-red-600/10 uppercase tracking-tighter -rotate-12">Aborted</span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        
+        {/* VOUCHERS TAB */}
         {activeTab === 'vouchers' && (
           <div className="grid lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
             <div className="lg:col-span-4">
               <form onSubmit={handleVoucherSubmit} className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-                <h2 className="text-2xl font-black mb-8 uppercase italic flex items-center gap-3">
-                    <span className="w-2 h-8 bg-blue-600 inline-block"></span>
-                    Forge Promo
-                </h2>
+                <h2 className="text-2xl font-black mb-8 uppercase italic">Forge Promo</h2>
                 <div className="space-y-6">
-                  <div className="group">
-                    <p className="text-[8px] font-black text-gray-600 uppercase mb-2 tracking-widest px-2">Encryption Code</p>
-                    <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black uppercase tracking-widest outline-none focus:border-blue-600 transition-all" placeholder="e.g. PEDAL_FORCE_50" value={vForm.code} onChange={e => setVForm({...vForm, code: e.target.value})} required />
-                  </div>
-                  <div className="group">
-                    <p className="text-[8px] font-black text-gray-600 uppercase mb-2 tracking-widest px-2">Discount Ratio (%)</p>
-                    <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black focus:border-blue-600 outline-none transition-all" type="number" placeholder="Percentage" value={vForm.discount_percent} onChange={e => setVForm({...vForm, discount_percent: e.target.value})} required />
-                  </div>
-                  <button className="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-white hover:text-black transition-all shadow-xl active:scale-95">
-                      Activate Promo Node
-                  </button>
+                  <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-600" placeholder="PROMO_CODE" value={vForm.code} onChange={e => setVForm({...vForm, code: e.target.value})} required />
+                  <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black focus:border-blue-600 outline-none" type="number" placeholder="Percentage %" value={vForm.discount_percent} onChange={e => setVForm({...vForm, discount_percent: e.target.value})} required />
+                  <button className="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-white hover:text-black transition-all">Activate Node</button>
                 </div>
               </form>
             </div>
@@ -505,16 +510,14 @@ export default function Admin() {
             <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
                <table className="w-full text-left">
                  <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
-                   <tr><th className="p-10">Promo Unit</th><th className="p-10">Power</th><th className="p-10 text-right">Node Status</th></tr>
+                   <tr><th className="p-10">Promo Unit</th><th className="p-10">Power</th><th className="p-10 text-right">Status</th></tr>
                  </thead>
                  <tbody className="divide-y divide-white/5">
                    {vouchers.map(v => (
-                     <tr key={v.id} className="hover:bg-white/[0.02] transition-colors">
-                       <td className="p-10 font-black text-blue-500 italic text-2xl tracking-tighter">{v.code}</td>
-                       <td className="p-10 font-black text-2xl italic tracking-tighter text-white">{v.discount_percent}% REDUCTION</td>
-                       <td className="p-10 text-right">
-                           <span className="bg-green-600/10 text-green-500 border border-green-500/30 px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest italic">Node_Active</span>
-                       </td>
+                     <tr key={v.id}>
+                       <td className="p-10 font-black text-blue-500 italic text-2xl">{v.code}</td>
+                       <td className="p-10 font-black text-2xl italic text-white">{v.discount_percent}% REDUCTION</td>
+                       <td className="p-10 text-right"><span className="text-green-500 font-black uppercase text-[10px] italic">Active</span></td>
                      </tr>
                    ))}
                  </tbody>

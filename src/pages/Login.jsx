@@ -12,7 +12,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     
-    
+    // Step 1: Resolve Codename to Email
     const { data: userRecord } = await supabase
       .from('profiles')
       .select('email_copy')
@@ -25,6 +25,7 @@ export default function Login() {
       return;
     }
 
+    // Step 2: Authenticate with resolved email
     const { error } = await supabase.auth.signInWithPassword({ 
       email: userRecord.email_copy, 
       password 
@@ -39,30 +40,38 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    const { error } = await supabase.auth.signInWithOAuth({ 
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin // Babalik sa home after google login
+      }
+    });
     if (error) alert("❌ GOOGLE_AUTH_ERROR: " + error.message);
   };
 
   const handleForgotPassword = async () => {
-    const email = prompt("Enter your registered email for recovery:");
-    if (email) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
-      if (error) alert(error.message);
-      else alert("✅ RECOVERY SIGNAL SENT: Check your inbox.");
-    }
-  };
+  const email = prompt("Enter your registered email for recovery:");
+  if (email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Dapat match ito sa Redirect URL sa screenshot mo
+      redirectTo: 'http://localhost:5173/update-password',
+    });
+    
+    if (error) alert("❌ ERROR: " + error.message);
+    else alert("✅ RECOVERY SIGNAL SENT: Check your inbox.");
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center px-6 relative overflow-hidden text-white font-sans">
       
-      
+      {/* Aesthetic Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-white/5 blur-[100px] rounded-full" />
       </div>
 
       <div className="w-full max-w-[420px] relative z-10 animate-in fade-in zoom-in duration-500">
-        
         
         <div className="text-center mb-10">
           <div className="inline-block px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-4">
@@ -74,38 +83,42 @@ export default function Login() {
           <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3">Identity Verification Required</p>
         </div>
 
-        
         <div className="bg-[#0d0e12] p-8 md:p-10 rounded-[3rem] border border-white/5 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative">
           
           <form onSubmit={handleLogin} className="space-y-6">
             
-            
             <div className="space-y-1.5">
               <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-4">Codename / Username</label>
               <input 
-                className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 focus:ring-1 focus:ring-orange-600/20 transition-all shadow-inner placeholder:text-zinc-800" 
+                className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 focus:ring-1 focus:ring-orange-600/20 transition-all shadow-inner placeholder:text-zinc-800 text-white" 
                 placeholder="RIDER_ID" 
+                value={username}
                 onChange={e => setUsername(e.target.value)} 
                 required 
               />
             </div>
 
-            
             <div className="space-y-1.5">
               <div className="flex justify-between px-4">
                 <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Password</label>
-                <button type="button" onClick={handleForgotPassword} className="text-[8px] font-black text-zinc-700 uppercase hover:text-orange-600 transition-colors">Forgot Key?</button>
+                <button 
+                  type="button" 
+                  onClick={handleForgotPassword} 
+                  className="text-[8px] font-black text-zinc-700 uppercase hover:text-orange-600 transition-colors"
+                >
+                  Forgot password?
+                </button>
               </div>
               <input 
-                className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 focus:ring-1 focus:ring-orange-600/20 transition-all shadow-inner placeholder:text-zinc-800" 
+                className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 focus:ring-1 focus:ring-orange-600/20 transition-all shadow-inner placeholder:text-zinc-800 text-white" 
                 placeholder="********" 
                 type="password" 
+                value={password}
                 onChange={e => setPassword(e.target.value)} 
                 required 
               />
             </div>
 
-            
             <button 
               disabled={loading} 
               className="w-full bg-orange-600 text-white p-5 rounded-[2rem] font-black uppercase text-[11px] tracking-[0.4em] mt-4 hover:bg-white hover:text-black transition-all transform active:scale-[0.98] shadow-xl shadow-orange-600/10 disabled:opacity-50"
@@ -114,33 +127,29 @@ export default function Login() {
             </button>
           </form>
 
-          
           <div className="relative my-10 text-center">
             <div className="absolute inset-y-1/2 w-full h-[1px] bg-white/5" />
             <span className="relative bg-[#0d0e12] px-6 text-zinc-700 text-[8px] font-black uppercase tracking-[0.4em]">Alternative Node</span>
           </div>
 
-          
-<button 
-  onClick={handleGoogleLogin} 
-  type="button"
-  className="w-full bg-black text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-orange-600 hover:text-white transition-all active:scale-95 shadow-lg shadow-white/5"
->
-  <img 
-    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-    className="w-4 h-4" 
-    alt="G" 
-  />
-  Login with Google Identity
-</button>
+          <button 
+            onClick={handleGoogleLogin} 
+            type="button"
+            className="w-full bg-black text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-orange-600 hover:text-white transition-all active:scale-95 shadow-lg shadow-white/5"
+          >
+            <img 
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+              className="w-4 h-4" 
+              alt="G" 
+            />
+            Login with Google Identity
+          </button>
         </div>
 
-        
         <p className="mt-10 text-center text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em]">
           Unregistered Rider? <Link to="/signup" className="text-white hover:text-orange-600 ml-1 border-b border-white/5 hover:border-orange-600 transition-all">Create Profile</Link>
         </p>
 
-        
         <div className="absolute -bottom-10 left-0 right-0 flex justify-center opacity-10 pointer-events-none">
           <span className="text-[7px] font-mono tracking-widest text-white">PEDALSTREET_SECURITY_PROTOCOL_V4</span>
         </div>

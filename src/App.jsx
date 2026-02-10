@@ -1,7 +1,7 @@
+// App.js
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-
 
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -12,21 +12,37 @@ import Admin from './pages/Admin';
 import Orders from './pages/Orders'; 
 import ProductDetails from './pages/ProductDetails';
 import OrderSuccess from './pages/OrderSuccess';
+// --- DAGDAG: Import ang bagong UpdatePassword page ---
+import UpdatePassword from './pages/UpdatePassword'; 
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userProfile, setUserProfile] = useState(null); 
-  const [cart, setCart] = useState([]);
+
+  const [cart, setCart] = useState(() => {
+    const savedStash = localStorage.getItem('pedal_street_cart');
+    if (savedStash) {
+      try {
+        return JSON.parse(savedStash);
+      } catch (e) {
+        console.error("STASH_ERROR: Data corruption detected.");
+        return [];
+      }
+    }
+    return [];
+  });
 
   useEffect(() => {
-    
+    localStorage.setItem('pedal_street_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) checkUserRole(session.user.id);
     });
 
- 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
@@ -35,6 +51,7 @@ export default function App() {
         setIsAdmin(false);
         setUserProfile(null);
         setCart([]); 
+        localStorage.removeItem('pedal_street_cart');
       }
     });
 
@@ -62,14 +79,31 @@ export default function App() {
   const addToCart = (product) => {
     if (isAdmin) {
       alert("ADMIN_NOTICE: Overlords cannot acquire gear.");
-      return; 
+      return;
     }
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+
+    setCart((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) =>
+          item.id === product.id &&
+          item.selectedSize === product.selectedSize &&
+          item.selectedColor === product.selectedColor
+      );
+
+      if (existingIndex > -1) {
+        const newCart = [...prev];
+        const newQty = newCart[existingIndex].quantity + (product.quantity || 1);
+        
+        if (newQty > product.stock) {
+          alert(`🚨 STOCK_LIMIT: Only ${product.stock} units available.`);
+          return prev;
+        }
+        
+        newCart[existingIndex].quantity = newQty;
+        return newCart;
       }
-      return [...prev, { ...product, quantity: 1 }];
+
+      return [...prev, { ...product }];
     });
   };
 
@@ -82,11 +116,9 @@ export default function App() {
     <Router>
       <div className="min-h-screen bg-[#0a0b0d] text-white font-sans selection:bg-orange-600 selection:text-white">
         
-        
         <nav className="sticky top-0 z-[100] bg-[#0a0b0d]/90 backdrop-blur-xl border-b border-white/5 px-6 py-4">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             
-           
             <Link to="/" className="flex items-center gap-2 group cursor-pointer relative z-[110]">
               <div className="bg-orange-600 p-2 rounded-xl rotate-12 group-hover:rotate-0 transition-transform shadow-lg shadow-orange-600/20">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -108,7 +140,6 @@ export default function App() {
                     </p>
                   </div>
                   
-                 
                   {!isAdmin && (
                     <Link to="/orders" className="text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-orange-600 transition">
                       Mission Log
@@ -147,23 +178,20 @@ export default function App() {
           </div>
         </nav>
 
-        
         <main className="relative z-10">
           <Routes>
-            <Route path="/" element={<Home addToCart={addToCart} isAdmin={isAdmin} session={session} userProfile={userProfile} />} />
+            <Route path="/" element={<Home isAdmin={isAdmin} session={session} userProfile={userProfile} />} />
             <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
             <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
-            
-           
             <Route path="/cart" element={session ? <Cart cart={cart} setCart={setCart} /> : <Navigate to="/login" />} />
             <Route path="/checkout" element={session ? <Checkout cart={cart} setCart={setCart} session={session} /> : <Navigate to="/login" />} />
             <Route path="/orders" element={session ? <Orders /> : <Navigate to="/login" />} />
             <Route path="/order-success" element={session ? <OrderSuccess /> : <Navigate to="/login" />} />
-            
-            
             <Route path="/product/:id" element={<ProductDetails addToCart={addToCart} />} />
             <Route path="/admin" element={isAdmin ? <Admin /> : <Navigate to="/" />} />
             
+            {/* DAGDAG: Route para sa Password Update */}
+            <Route path="/update-password" element={<UpdatePassword />} />
             
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
