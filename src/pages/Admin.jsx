@@ -12,21 +12,64 @@ export default function Admin() {
   const [vouchers, setVouchers] = useState([]);
   const [editingId, setEditingId] = useState(null);
   
-  
+  const [storageImages, setStorageImages] = useState([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   const [form, setForm] = useState({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
   const [vForm, setVForm] = useState({ code: '', discount_percent: '' });
-  
-  
+
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
-
+  
   useEffect(() => {
     fetchProducts();
     fetchOrders();
     fetchVouchers();
   }, []);
+
+  const fetchStorageImages = async () => {
+   
+    const { data, error } = await supabase.storage.from('product-images').list('', {
+      limit: 100,
+      sortBy: { column: 'name', order: 'desc' },
+    });
+    if (data) {
+      setStorageImages(data);
+    }
+    if (error) console.error("Storage Error:", error.message);
+  };
+
+  useEffect(() => {
+    if (showPicker) fetchStorageImages();
+  }, [showPicker]);
+
+  
+  const handleUpload = async (e) => {
+    try {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`; 
+
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      alert("SYNCED: Image uploaded and ready to use!");
+      fetchStorageImages(); 
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchProducts = async () => {
     const { data } = await supabase.from('products').select('*').order('id', { ascending: false });
@@ -62,10 +105,7 @@ export default function Admin() {
       setLoading(false);
     }
   };
-
-  
-
-  
+ 
   const adjustStock = async (id, currentStock, amount) => {
     const newStock = Math.max(0, currentStock + amount);
     const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
@@ -74,7 +114,6 @@ export default function Admin() {
 
   const updateOrderStatus = async (id, status) => {
     const orderToUpdate = orders.find(o => o.id === id);
-    
     
     if (status === 'SHIPPED' && orderToUpdate.status === 'PENDING') {
       for (const item of orderToUpdate.order_items) {
@@ -193,20 +232,21 @@ export default function Admin() {
       ? supabase.from('products').update(payload).eq('id', editingId) 
       : supabase.from('products').insert([payload]);
 
-    const { error } = await action;
+    const { error } = action; 
     
-    if (!error) {
+    const result = await action;
+    
+    if (!result.error) {
       alert(editingId ? "UNIT UPDATED " : "PRODUCT DEPLOYED ");
       setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
       setEditingId(null);
       fetchProducts();
     } else {
-      console.error("Deploy Error:", error.message);
+      console.error("Deploy Error:", result.error.message);
       alert("DEPLOYMENT FAILED: Check Console");
     }
   };
 
-  
   const totalRevenue = orders.filter(o => o.status === 'DELIVERED').reduce((a, b) => a + Number(b.total_amount), 0);
   const lowStockItems = products.filter(p => p.stock <= 5);
   const salesData = orders.filter(o => o.status === 'DELIVERED').slice(0, 10).map(o => ({
@@ -216,7 +256,6 @@ export default function Admin() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-[#050505] text-white">
-      
       
       <div className="lg:w-72 bg-[#0d0e12] border-r border-white/5 p-10 flex flex-col justify-between">
         <div className="space-y-12">
@@ -254,7 +293,6 @@ export default function Admin() {
       </div>
 
       <div className="flex-1 p-8 lg:p-16 overflow-y-auto">
-        
         
         {activeTab === 'dashboard' && (
           <div className="space-y-12 animate-in fade-in duration-700">
@@ -307,7 +345,6 @@ export default function Admin() {
           </div>
         )}
 
-        
         {activeTab === 'inventory' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-700">
             
@@ -318,7 +355,6 @@ export default function Admin() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <span className="absolute left-6 top-6 text-orange-600">🔍</span>
             </div>
 
             <div className="grid lg:grid-cols-12 gap-12">
@@ -330,10 +366,12 @@ export default function Admin() {
                     </h2>
                     <div className="space-y-5">
                       <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs outline-none focus:border-orange-600 transition-all font-bold" placeholder="Product Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+                      
                       <div className="grid grid-cols-2 gap-4">
                           <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Price" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
                           <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs focus:border-orange-600 outline-none transition-all font-bold" type="number" placeholder="Stock" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required />
                       </div>
+
                       <select className="w-full bg-black border border-white/5 p-5 rounded-2xl text-gray-400 text-xs font-bold outline-none cursor-pointer" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required>
                         <option value="">Select Category</option>
                         <option value="ROAD">ROAD OPS</option>
@@ -341,11 +379,33 @@ export default function Admin() {
                         <option value="PARTS">COMPONENTS</option>
                         <option value="GEAR">TACTICAL GEAR</option>
                       </select>
-                      <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none" placeholder="Image URL" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} required />
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Product Visual</label>
+                        <div className="flex gap-2">
+                          <input 
+                            className="flex-1 bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none truncate" 
+                            placeholder="Select from Storage..." 
+                            value={form.image_url} 
+                            readOnly 
+                            required
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowPicker(true)}
+                            className="bg-orange-600 px-6 rounded-2xl text-[10px] font-black uppercase hover:bg-white hover:text-orange-600 transition-all shadow-lg"
+                          >
+                            Browse
+                          </button>
+                        </div>
+                      </div>
+
                       <textarea className="w-full bg-black border border-white/5 p-5 rounded-2xl h-32 text-white text-xs font-bold outline-none" placeholder="DESCRIPTION" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+                      
                       <button className="w-full bg-white text-black p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-orange-600 hover:text-white transition-all shadow-xl">
                           {editingId ? "Update Asset" : "Add Product"}
                       </button>
+                      
                       {editingId && <button onClick={() => {setEditingId(null); setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });}} className="w-full text-[9px] text-gray-600 font-black uppercase tracking-widest mt-4 underline">Abort Mission</button>}
                     </div>
                   </form>
@@ -372,7 +432,6 @@ export default function Admin() {
                               </div>
                            </td>
                            <td className="p-10">
-                              
                               <div className="flex items-center gap-4">
                                 <button onClick={() => adjustStock(p.id, p.stock, -1)} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all font-black">-</button>
                                 <span className={`min-w-[60px] text-center px-4 py-2 rounded-full text-[10px] font-black italic border ${p.stock <= 5 ? 'border-red-500 text-red-500 bg-red-500/10 animate-pulse' : 'border-green-500/50 text-green-500 bg-green-500/10'}`}>
@@ -394,10 +453,8 @@ export default function Admin() {
           </div>
         )}
 
-        
         {activeTab === 'orders' && (
           <div className="space-y-10 animate-in slide-in-from-right-10 duration-700">
-           
             <div className="relative">
               <input 
                 className="w-full bg-[#0d0e12] border border-white/10 p-6 pl-14 rounded-3xl text-white text-[10px] font-black uppercase tracking-widest outline-none focus:border-orange-600 shadow-2xl"
@@ -405,7 +462,6 @@ export default function Admin() {
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
               />
-              <span className="absolute left-6 top-6 text-orange-600 font-black">⚡</span>
             </div>
 
             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
@@ -461,30 +517,30 @@ export default function Admin() {
 
                   <div className={`grid md:grid-cols-3 divide-x divide-white/5 ${order.status === 'CANCELLED' ? 'opacity-40 grayscale' : ''}`}>
                     <div className="p-12">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic flex items-center gap-2">Recipient Info</p>
-                       <h3 className="text-3xl font-black italic uppercase leading-none text-white">{order.profiles?.first_name} {order.profiles?.last_name}</h3>
-                       <p className="text-[10px] text-gray-500 mt-6 font-bold leading-relaxed">📍 {order.address}<br/>📞 {order.phone}</p>
+                        <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic flex items-center gap-2">Recipient Info</p>
+                        <h3 className="text-3xl font-black italic uppercase leading-none text-white">{order.profiles?.first_name} {order.profiles?.last_name}</h3>
+                        <p className="text-[10px] text-gray-500 mt-6 font-bold leading-relaxed">📍 {order.address}<br/>📞 {order.phone}</p>
                     </div>
 
                     <div className="p-12">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic">PRODUCT DETAILS</p>
-                       <div className="space-y-4">
-                        {order.order_items?.map((item, idx) => (
-                          <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-2xl border border-white/5">
-                            <img src={item.products?.image_url} className="w-12 h-12 object-cover rounded-xl" />
-                            <div>
-                                <p className="text-[10px] font-black uppercase italic text-white leading-tight">{item.products?.name}</p>
-                                <p className="text-[9px] font-bold text-orange-600 uppercase mt-1">Qty: {item.quantity}</p>
-                            </div>
-                          </div>
-                        ))}
-                       </div>
+                        <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic">PRODUCT DETAILS</p>
+                        <div className="space-y-4">
+                         {order.order_items?.map((item, idx) => (
+                           <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-2xl border border-white/5">
+                             <img src={item.products?.image_url} className="w-12 h-12 object-cover rounded-xl" />
+                             <div>
+                                 <p className="text-[10px] font-black uppercase italic text-white leading-tight">{item.products?.name}</p>
+                                 <p className="text-[9px] font-bold text-orange-600 uppercase mt-1">Qty: {item.quantity}</p>
+                             </div>
+                           </div>
+                         ))}
+                        </div>
                     </div>
 
                     <div className="p-12 bg-white/[0.01]">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic">Settlement</p>
-                       <p className="text-6xl font-black italic tracking-tighter text-white">₱{Number(order.total_amount).toLocaleString()}</p>
-                       <p className="text-[9px] font-black text-gray-700 uppercase mt-4">{order.payment_method}</p>
+                        <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic">Settlement</p>
+                        <p className="text-6xl font-black italic tracking-tighter text-white">₱{Number(order.total_amount).toLocaleString()}</p>
+                        <p className="text-[9px] font-black text-gray-700 uppercase mt-4">{order.payment_method}</p>
                     </div>
                   </div>
                 </div>
@@ -493,7 +549,6 @@ export default function Admin() {
           </div>
         )}
 
-        
         {activeTab === 'vouchers' && (
           <div className="grid lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
             <div className="lg:col-span-4">
@@ -506,26 +561,76 @@ export default function Admin() {
                 </div>
               </form>
             </div>
-
+            
             <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
-               <table className="w-full text-left">
-                 <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
-                   <tr><th className="p-10">Promo Unit</th><th className="p-10">PERCENTAGE</th><th className="p-10 text-right">Status</th></tr>
-                 </thead>
-                 <tbody className="divide-y divide-white/5">
-                   {vouchers.map(v => (
-                     <tr key={v.id}>
-                       <td className="p-10 font-black text-blue-500 italic text-2xl">{v.code}</td>
-                       <td className="p-10 font-black text-2xl italic text-white">{v.discount_percent}% DEDUCTION</td>
-                       <td className="p-10 text-right"><span className="text-green-500 font-black uppercase text-[10px] italic">Active</span></td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
+                <table className="w-full text-left">
+                  <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
+                    <tr><th className="p-10">Promo Unit</th><th className="p-10">PERCENTAGE</th><th className="p-10 text-right">Status</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {vouchers.map(v => (
+                      <tr key={v.id}>
+                        <td className="p-10 font-black text-blue-500 italic text-2xl">{v.code}</td>
+                        <td className="p-10 font-black text-2xl italic text-white">{v.discount_percent}% DEDUCTION</td>
+                        <td className="p-10 text-right"><span className="text-green-500 font-black uppercase text-[10px] italic">Active</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
             </div>
           </div>
         )}
       </div>
+
+      {showPicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#0d0e12] border border-white/10 w-full max-w-4xl max-h-[85vh] rounded-[3rem] flex flex-col overflow-hidden shadow-[0_0_100px_rgba(234,88,12,0.1)]">
+            <div className="p-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-center bg-white/[0.02] gap-6">
+              <div>
+                <h3 className="text-2xl font-black italic uppercase tracking-tighter">Asset <span className="text-orange-600">Library.</span></h3>
+                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-1">Source: bucket/product-images</p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className={`cursor-pointer bg-white text-black px-8 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-orange-600 hover:text-white transition-all shadow-lg flex items-center gap-2 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"/></svg>
+                  {uploading ? 'UPLOADING...' : 'UPLOAD NEW FILE'}
+                  <input type="file" className="hidden" accept="image/*" onChange={handleUpload} />
+                </label>
+
+                <button onClick={() => setShowPicker(false)} className="bg-white/5 hover:bg-red-600 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all">Close [X]</button>
+              </div>
+            </div>
+            
+            <div className="p-10 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 custom-scrollbar min-h-[400px]">
+              {storageImages.length === 0 && !uploading && <p className="col-span-full text-center text-gray-500 py-20 font-black uppercase italic tracking-widest">No assets found in storage...</p>}
+              
+              {storageImages.map((img) => {
+                const publicUrl = supabase.storage.from('product-images').getPublicUrl(img.name).data.publicUrl;
+                return (
+                  <div 
+                    key={img.id} 
+                    onClick={() => {
+                      setForm({...form, image_url: publicUrl});
+                      setShowPicker(false);
+                    }}
+                    className="group cursor-pointer space-y-3"
+                  >
+                    <div className={`aspect-square rounded-[2rem] overflow-hidden border-4 transition-all duration-300 shadow-2xl ${form.image_url === publicUrl ? 'border-orange-600 scale-95' : 'border-transparent group-hover:border-white/20'}`}>
+                      <img src={publicUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={img.name} />
+                    </div>
+                    <p className="text-[9px] font-black text-gray-600 truncate uppercase text-center px-2">{img.name}</p>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="p-6 bg-white/[0.02] border-t border-white/5 text-center">
+               <p className="text-[8px] font-black text-gray-700 uppercase tracking-[0.4em]">PedalStreet Asset Management System v2.0</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

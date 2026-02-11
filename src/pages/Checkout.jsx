@@ -31,9 +31,14 @@ export default function Checkout({ cart, setCart, session }) {
   const total = subtotal - discountAmount;
 
   useEffect(() => {
-    if (activeItems.length === 0) navigate('/inventory');
-    window.scrollTo(0, 0);
-  }, [activeItems, navigate]);
+    if (activeItems.length === 0) {
+      navigate('/inventory');
+    } else {
+    
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    
+  }, [navigate]);
 
   const applyPromoCode = async () => {
     setPromoError('');
@@ -142,11 +147,11 @@ export default function Checkout({ cart, setCart, session }) {
         <div className="relative">
           <div className="absolute -left-4 top-0 w-1 h-full bg-orange-600" />
           <h1 className="text-6xl md:text-8xl font-black italic uppercase tracking-tighter leading-none">
-            {directBuyItem ? 'EXPRESS' : 'Checkout'} <span className="text-orange-600">PRODUCT.</span>
+            {directBuyItem ? 'EXPRESS' : 'PRODUCT'} <span className="text-orange-600">CHECKOUT.</span>
           </h1>
           <div className="flex items-center gap-3 mt-4">
             <p className="text-gray-600 font-black uppercase text-[10px] tracking-[0.5em]">
-              {directBuyItem ? 'BYPASSING STASH PROTOCOL' : 'Checkout and Confirm Your Package'}
+              {directBuyItem ? 'SECURE PACKAGE DELIVERY' : 'Checkout and Confirm Your Package'}
             </p>
             {directBuyItem && (
               <span className="bg-orange-600 text-white text-[8px] font-black px-2 py-0.5 rounded animate-pulse">DIRECT LINK ACTIVE</span>

@@ -6,6 +6,9 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState(null);
 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -41,24 +44,62 @@ export default function Orders() {
     setLoading(false);
   };
 
-  const handleCancelOrder = async (e, orderId) => {
+  const handleCancelOrder = (e, orderId) => {
     e.stopPropagation();
-    if (window.confirm("Cancel THIS ORDER? This cannot be undone.")) {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'CANCELLED' })
-        .eq('id', orderId);
-
-      if (!error) {
-        fetchOrders();
-      }
-    }
+    setPendingAction(orderId);
+    setModalOpen(true);
   };
+
+  const confirmCancel = async () => {
+    if (!pendingAction) return;
+    
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'CANCELLED' })
+      .eq('id', pendingAction);
+
+    if (!error) {
+      fetchOrders();
+    }
+    setModalOpen(false);
+    setPendingAction(null);
+  };
+
+  const ModernModal = () => (
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-6 transition-all duration-500 ${modalOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setModalOpen(false)} />
+      <div className={`relative bg-[#0d0e12] border border-white/10 w-full max-w-md rounded-[3rem] p-10 shadow-2xl transition-all duration-500 transform ${modalOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-10'}`}>
+        <div className="flex flex-col items-center text-center">
+          <div className="w-20 h-20 bg-red-600/10 rounded-full flex items-center justify-center mb-6 border border-red-600/20">
+            <div className="w-3 h-3 bg-red-600 rounded-full animate-ping" />
+          </div>
+          <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4">Confirm <span className="text-red-600">CANCEL?</span></h3>
+          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] leading-relaxed mb-10">
+            You are about to terminate this order sequence. This action is irreversible within the system.
+          </p>
+          <div className="flex flex-col w-full gap-3">
+            <button 
+              onClick={confirmCancel}
+              className="w-full bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.4em] py-5 rounded-2xl hover:bg-white hover:text-black transition-all active:scale-95 shadow-xl shadow-red-600/20"
+            >
+              Confirm Cancellation
+            </button>
+            <button 
+              onClick={() => setModalOpen(false)}
+              className="w-full bg-white/5 text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em] py-5 rounded-2xl hover:bg-white/10 hover:text-white transition-all"
+            >
+              Maintain Order
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 font-sans selection:bg-orange-600">
+      <ModernModal />
       <div className="max-w-4xl mx-auto">
-        
         
         <div className="mb-16">
           <div className="flex items-center gap-3 mb-2">
@@ -133,7 +174,6 @@ export default function Orders() {
                     </div>
                   </div>
 
-                 
                   <div className={`transition-all duration-700 px-10 ${isExpanded ? 'max-h-[2500px] pb-12 opacity-100' : 'max-h-0 opacity-0'}`}>
                     <div className="h-[1px] w-full bg-white/5 mb-10" />
                     
