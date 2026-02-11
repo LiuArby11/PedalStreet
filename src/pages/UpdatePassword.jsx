@@ -9,12 +9,12 @@ export default function UpdatePassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Kinukuha nito ang session mula sa URL hash fragment (#access_token=...)
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "PASSWORD_RECOVERY" || session) {
+      if (event === "PASSWORD RECOVERY" || session) {
         setIsReady(true);
       } else {
-        // Kung walang token, ibalik sa login pagkalipas ng 2 seconds
+       
         setTimeout(() => {
             if (!isReady) navigate('/login');
         }, 2000);
@@ -31,9 +31,9 @@ export default function UpdatePassword() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      alert("❌ UPDATE FAILED: " + error.message);
+      alert(" UPDATE FAILED: " + error.message);
     } else {
-      alert("✅ PASSWORD HARDENED: Access updated.");
+      alert(" PASSWORD HARDENED: Access updated.");
       await supabase.auth.signOut(); 
       navigate('/login');
     }

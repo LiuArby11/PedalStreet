@@ -12,7 +12,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     
-    // Step 1: Resolve Codename to Email
+    
     const { data: userRecord } = await supabase
       .from('profiles')
       .select('email_copy')
@@ -20,19 +20,19 @@ export default function Login() {
       .single();
     
     if (!userRecord) {
-      alert("❌ ACCESS DENIED: Codename not found in registry.");
+      alert(" ACCESS DENIED: Username not found");
       setLoading(false);
       return;
     }
 
-    // Step 2: Authenticate with resolved email
+    
     const { error } = await supabase.auth.signInWithPassword({ 
       email: userRecord.email_copy, 
       password 
     });
 
     if (error) {
-      alert("❌ VERIFICATION FAILED: " + error.message);
+      alert(" VERIFICATION FAILED: " + error.message);
     } else {
       navigate('/');
     }
@@ -43,29 +43,29 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({ 
       provider: 'google',
       options: {
-        redirectTo: window.location.origin // Babalik sa home after google login
+        redirectTo: window.location.origin 
       }
     });
-    if (error) alert("❌ GOOGLE_AUTH_ERROR: " + error.message);
+    if (error) alert(" GOOGLE_AUTH_ERROR: " + error.message);
   };
 
   const handleForgotPassword = async () => {
   const email = prompt("Enter your registered email for recovery:");
   if (email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Dapat match ito sa Redirect URL sa screenshot mo
+      
       redirectTo: 'http://localhost:5173/update-password',
     });
     
-    if (error) alert("❌ ERROR: " + error.message);
-    else alert("✅ RECOVERY SIGNAL SENT: Check your inbox.");
+    if (error) alert(" ERROR: " + error.message);
+    else alert(" RECOVERY SIGNAL SENT: Check your inbox.");
   }
 };
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center px-6 relative overflow-hidden text-white font-sans">
       
-      {/* Aesthetic Background Elements */}
+      
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-white/5 blur-[100px] rounded-full" />
@@ -75,10 +75,10 @@ export default function Login() {
         
         <div className="text-center mb-10">
           <div className="inline-block px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-4">
-             <p className="text-[7px] font-black text-orange-600 uppercase tracking-[0.5em] animate-pulse">System Access Terminal</p>
+             <p className="text-[7px] font-black text-orange-600 uppercase tracking-[0.5em] animate-pulse">Login Access To PedalStreet</p>
           </div>
           <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-none">
-            RIDE <span className="text-orange-600">IN.</span>
+              LOG <span className="text-orange-600">IN.</span>
           </h2>
           <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-3">Identity Verification Required</p>
         </div>
@@ -88,10 +88,10 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-6">
             
             <div className="space-y-1.5">
-              <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-4">Codename / Username</label>
+              <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-4">Username</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 focus:ring-1 focus:ring-orange-600/20 transition-all shadow-inner placeholder:text-zinc-800 text-white" 
-                placeholder="RIDER_ID" 
+                placeholder="username" 
                 value={username}
                 onChange={e => setUsername(e.target.value)} 
                 required 
@@ -123,13 +123,13 @@ export default function Login() {
               disabled={loading} 
               className="w-full bg-orange-600 text-white p-5 rounded-[2rem] font-black uppercase text-[11px] tracking-[0.4em] mt-4 hover:bg-white hover:text-black transition-all transform active:scale-[0.98] shadow-xl shadow-orange-600/10 disabled:opacity-50"
             >
-              {loading ? "VERIFYING..." : "INITIALIZE LOGIN"}
+              {loading ? "VERIFYING..." : "LOGIN"}
             </button>
           </form>
 
           <div className="relative my-10 text-center">
             <div className="absolute inset-y-1/2 w-full h-[1px] bg-white/5" />
-            <span className="relative bg-[#0d0e12] px-6 text-zinc-700 text-[8px] font-black uppercase tracking-[0.4em]">Alternative Node</span>
+            <span className="relative bg-[#0d0e12] px-6 text-zinc-700 text-[8px] font-black uppercase tracking-[0.4em]">SIGN IN WITH</span>
           </div>
 
           <button 
@@ -142,16 +142,16 @@ export default function Login() {
               className="w-4 h-4" 
               alt="G" 
             />
-            Login with Google Identity
+            Login with Google 
           </button>
         </div>
 
         <p className="mt-10 text-center text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em]">
-          Unregistered Rider? <Link to="/signup" className="text-white hover:text-orange-600 ml-1 border-b border-white/5 hover:border-orange-600 transition-all">Create Profile</Link>
+          Unregistered User? <Link to="/signup" className="text-white hover:text-orange-600 ml-1 border-b border-white/5 hover:border-orange-600 transition-all">Create Profile</Link>
         </p>
 
         <div className="absolute -bottom-10 left-0 right-0 flex justify-center opacity-10 pointer-events-none">
-          <span className="text-[7px] font-mono tracking-widest text-white">PEDALSTREET_SECURITY_PROTOCOL_V4</span>
+          <span className="text-[7px] font-mono tracking-widest text-white">PEDALSTREET_LOGIN</span>
         </div>
       </div>
     </div>

@@ -15,12 +15,12 @@ export default function Signup() {
       provider: 'google',
       options: { redirectTo: window.location.origin }
     });
-    if (error) alert("❌ GOOGLE_AUTH_ERROR: " + error.message);
+    if (error) alert(" GOOGLE_AUTH_ERROR: " + error.message);
   };
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) return alert("❌ ERROR: Passwords do not match.");
+    if (formData.password !== formData.confirmPassword) return alert(" ERROR: Passwords do not match.");
 
     setLoading(true);
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -29,7 +29,7 @@ export default function Signup() {
     });
 
     if (authError) {
-      alert("❌ AUTH_FAILURE: " + authError.message);
+      alert(" AUTH_FAILURE: " + authError.message);
       setLoading(false);
     } else {
       const { error: profileError } = await supabase
@@ -44,10 +44,10 @@ export default function Signup() {
         .eq('id', authData.user.id);
 
       if (profileError) {
-        alert("❌ PROFILE_SYNC_ERROR: " + profileError.message);
+        alert(" PROFILE_SYNC_ERROR: " + profileError.message);
         setLoading(false);
       } else {
-        alert("✅ DEPLOYMENT SUCCESSFUL: Check your email for verification.");
+        alert(" DEPLOYMENT SUCCESSFUL: Check your email for verification.");
         navigate('/login');
       }
     }
@@ -68,12 +68,12 @@ export default function Signup() {
         
         <div className="text-center mb-10">
           <div className="inline-block px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-5">
-             <p className="text-[7px] font-black text-orange-600 uppercase tracking-[0.6em] animate-pulse">Node Registry: New_User_02</p>
+             <p className="text-[7px] font-black text-orange-600 uppercase tracking-[0.6em] animate-pulse"> CREATE ACCOUNT</p>
           </div>
           <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-none">
-            JOIN <span className="text-orange-600 font-black">THE CORE.</span>
+            SIGN <span className="text-orange-600 font-black">UP NOW.</span>
           </h2>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-4">Create your tactical rider profile</p>
+          <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-4">Create your user profile</p>
         </div>
 
        
@@ -86,7 +86,7 @@ export default function Signup() {
               <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">First Name</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
-                placeholder="RIDER_FN" 
+                placeholder="first name" 
                 onChange={e => setFormData({...formData, firstName: e.target.value})} 
                 required 
               />
@@ -96,7 +96,7 @@ export default function Signup() {
               <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Last Name</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
-                placeholder="RIDER_LN" 
+                placeholder="last name" 
                 onChange={e => setFormData({...formData, lastName: e.target.value})} 
                 required 
               />
@@ -104,10 +104,10 @@ export default function Signup() {
 
             
             <div className="col-span-2 space-y-2">
-              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Codename / Username</label>
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Username</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
-                placeholder="@RIDER_ID" 
+                placeholder="username" 
                 onChange={e => setFormData({...formData, username: e.target.value})} 
                 required 
               />
@@ -115,10 +115,10 @@ export default function Signup() {
 
             
             <div className="col-span-2 space-y-2">
-              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Comms Link (Email)</label>
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4"> Email</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
-                placeholder="EMAIL@PEDALSTREET.COM" 
+                placeholder="EMAIL@GMAIL.COM" 
                 type="email" 
                 onChange={e => setFormData({...formData, email: e.target.value})} 
                 required 
@@ -127,7 +127,7 @@ export default function Signup() {
 
             
             <div className="col-span-2 space-y-2">
-              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Contact Signal</label>
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Contact number</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
                 placeholder="09XXXXXXXXX" 
@@ -150,7 +150,7 @@ export default function Signup() {
             </div>
 
             <div className="col-span-1 space-y-2">
-              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Confirm</label>
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] ml-4">Confirm Password</label>
               <input 
                 className="w-full bg-black border border-white/5 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800" 
                 placeholder="********" 
@@ -173,7 +173,7 @@ export default function Signup() {
          
           <div className="relative my-10 text-center">
             <div className="absolute inset-y-1/2 w-full h-[1px] bg-white/5" />
-            <span className="relative bg-[#0d0e12] px-6 text-zinc-700 text-[8px] font-black uppercase tracking-[0.5em]">Auth Node 02</span>
+            <span className="relative bg-[#0d0e12] px-6 text-zinc-700 text-[8px] font-black uppercase tracking-[0.5em]">Sign Up With</span>
           </div>
 
           
@@ -187,21 +187,21 @@ export default function Signup() {
               className="w-4 h-4 transition-transform group-hover:scale-110" 
               alt="G" 
             />
-            Sign up with Google Node
+            Sign up with Google 
           </button>
         </div>
 
         
         <div className="mt-10 text-center">
           <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em]">
-            Already registered? <Link to="/login" className="text-white hover:text-orange-600 ml-1 border-b border-white/5 hover:border-orange-600 pb-0.5 transition-all">Access Terminal</Link>
+            Already registered? <Link to="/login" className="text-white hover:text-orange-600 ml-1 border-b border-white/5 hover:border-orange-600 pb-0.5 transition-all">Login Now</Link>
           </p>
         </div>
         
         
         <div className="absolute -bottom-12 left-0 right-0 flex justify-between opacity-10 px-4 pointer-events-none">
-          <span className="text-[7px] font-mono tracking-widest text-white">CORE_REGISTRY_V4</span>
-          <span className="text-[7px] font-mono tracking-widest text-white">PEDALSTREET_TACTICAL</span>
+          <span className="text-[7px] font-mono tracking-widest text-white">SIGN UP</span>
+          <span className="text-[7px] font-mono tracking-widest text-white">PEDALSTREET</span>
         </div>
       </div>
     </div>

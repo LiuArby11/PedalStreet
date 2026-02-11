@@ -43,7 +43,7 @@ export default function Orders() {
 
   const handleCancelOrder = async (e, orderId) => {
     e.stopPropagation();
-    if (window.confirm("🚨 RIDER, ABORT THIS MISSION? This cannot be undone.")) {
+    if (window.confirm("Cancel THIS ORDER? This cannot be undone.")) {
       const { error } = await supabase
         .from('orders')
         .update({ status: 'CANCELLED' })
@@ -63,12 +63,12 @@ export default function Orders() {
         <div className="mb-16">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-2 h-2 bg-orange-600 rounded-full animate-pulse"></div>
-            <p className="text-orange-600 font-black text-[10px] tracking-[0.5em] uppercase italic">Personnel Stash</p>
+            <p className="text-orange-600 font-black text-[10px] tracking-[0.5em] uppercase italic">Personnel Orders</p>
           </div>
           <h2 className="text-7xl font-black italic uppercase tracking-tighter leading-none">
-            MY <span className="text-white/20 font-outline-2">STASH.</span>
+            MY <span className="text-white/20 font-outline-2">ORDERS.</span>
           </h2>
-          <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-[0.4em] mt-4">Registry of Active & Past Deployments</p>
+          <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-[0.4em] mt-4">ORDER SETTLEMENT</p>
         </div>
 
         {loading ? (
@@ -112,15 +112,15 @@ export default function Orders() {
                       </div>
                       <div>
                         <h3 className="text-2xl font-black italic uppercase tracking-tighter">
-                          {items.length} {items.length === 1 ? 'UNIT' : 'UNITS'} DEPLOYED
+                          {items.length} {items.length === 1 ? 'Product' : 'Products'} Ordered
                         </h3>
-                        <p className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-widest">OPS_REF: {order.id.slice(0,8)}</p>
+                        <p className="text-[10px] font-mono text-zinc-600 font-bold uppercase tracking-widest">Product id: {order.id.slice(0,8)}</p>
                       </div>
                     </div>
 
                     <div className="text-right hidden sm:flex items-center gap-10">
                       <div>
-                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1 italic">Settlement</p>
+                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1 italic">Payment</p>
                         <p className="text-3xl font-black text-white italic tracking-tighter">₱{Number(order.total_amount).toLocaleString()}</p>
                       </div>
                       <span className={`text-[9px] font-black uppercase px-6 py-2 rounded-full tracking-[0.2em] shadow-sm ${
@@ -154,8 +154,8 @@ export default function Orders() {
                                   {item.products?.name || 'Unit Missing from Database'}
                                 </h4>
                                 <div className="flex gap-6 mt-3">
-                                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Volume: {item.quantity}</p>
-                                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Unit Price: ₱{Number(item.price).toLocaleString()}</p>
+                                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">QUANTITY: {item.quantity}</p>
+                                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Product Price: ₱{Number(item.price).toLocaleString()}</p>
                                 </div>
                               </div>
                             </div>
@@ -167,14 +167,14 @@ export default function Orders() {
                     <div className="mt-12 pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
                       <div className="space-y-4">
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-orange-600 uppercase tracking-[0.4em] italic">Drop Point Coords</p>
+                          <p className="text-[9px] font-black text-orange-600 uppercase tracking-[0.4em] italic">Details</p>
                           <p className="text-xs font-bold text-zinc-400 uppercase leading-relaxed font-mono">
                             ID: {order.phone} <br /> 
                             LOC: {order.address}
                           </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em] italic">Settlement Type</p>
+                          <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em] italic">Mode of Payment</p>
                           <p className="text-xs font-bold text-white uppercase">{order.payment_method}</p>
                         </div>
                       </div>
@@ -184,7 +184,7 @@ export default function Orders() {
                           onClick={(e) => handleCancelOrder(e, order.id)}
                           className="w-full md:w-auto bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.3em] px-12 py-5 rounded-2xl hover:bg-white hover:text-black transition-all shadow-2xl shadow-red-600/20 active:scale-95"
                         >
-                          Abort Mission
+                          Cancel Order
                         </button>
                       )}
                     </div>

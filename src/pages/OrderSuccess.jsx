@@ -24,7 +24,7 @@ export default function OrderSuccess() {
           </div>
 
           <h1 className="text-5xl font-black italic uppercase tracking-tighter text-white mb-4">
-            MISSION <span className="text-orange-600">SUCCESS.</span>
+            ORDER <span className="text-orange-600">SUCCESS.</span>
           </h1>
 
           <div className="inline-block bg-white/5 border border-white/10 px-5 py-2 rounded-full mb-8">
@@ -41,7 +41,7 @@ export default function OrderSuccess() {
             onClick={() => navigate('/')}
             className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] hover:bg-orange-600 hover:text-white transition-all transform active:scale-95 shadow-xl"
           >
-            Return to Base
+            RETURN TO SHOPPING
           </button>
 
           

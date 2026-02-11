@@ -12,11 +12,11 @@ export default function Admin() {
   const [vouchers, setVouchers] = useState([]);
   const [editingId, setEditingId] = useState(null);
   
-  // Forms
+  
   const [form, setForm] = useState({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
   const [vForm, setVForm] = useState({ code: '', discount_percent: '' });
   
-  // UI States
+  
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,9 +63,9 @@ export default function Admin() {
     }
   };
 
-  // --- QUICK ACTIONS ---
+  
 
-  // Bagong function para sa mabilisang pag-update ng stock
+  
   const adjustStock = async (id, currentStock, amount) => {
     const newStock = Math.max(0, currentStock + amount);
     const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
@@ -75,7 +75,7 @@ export default function Admin() {
   const updateOrderStatus = async (id, status) => {
     const orderToUpdate = orders.find(o => o.id === id);
     
-    // Inventory Management Logic
+    
     if (status === 'SHIPPED' && orderToUpdate.status === 'PENDING') {
       for (const item of orderToUpdate.order_items) {
         if (item.product_id) {
@@ -101,7 +101,7 @@ export default function Admin() {
   const printWaybill = (order) => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
-      alert("🚨 POP-UP BLOCKED! Enable pop-ups to print waybills.");
+      alert(" POP-UP BLOCKED! Enable pop-ups to print waybills.");
       return;
     }
 
@@ -138,14 +138,14 @@ export default function Admin() {
         <body>
           <div class="header">
             <div><h1 class="brand">PEDALSTREET.</h1><p>MANIFEST ID: ${order.id.toUpperCase()}</p></div>
-            <div style="text-align: right"><div class="badge">Tactical Delivery</div><p>${new Date(order.created_at).toLocaleString()}</p></div>
+            <div style="text-align: right"><div class="badge"> Delivery</div><p>${new Date(order.created_at).toLocaleString()}</p></div>
           </div>
           <div style="margin: 40px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
             <div><h4 style="margin-bottom: 5px; text-decoration: underline;">RECIPIENT</h4><strong>${order.profiles?.first_name} ${order.profiles?.last_name}</strong><br>${order.address}<br>T: ${order.phone}</div>
             <div style="text-align: right"><h4 style="margin-bottom: 5px; text-decoration: underline;">PAYMENT METHOD</h4><strong>${order.payment_method}</strong></div>
           </div>
           <table>
-            <thead><tr style="background: #f4f4f4;"><th style="padding:15px;text-align:left">UNIT_DESCRIPTION</th><th style="padding:15px">QTY</th><th style="padding:15px;text-align:right">PRICE</th></tr></thead>
+            <thead><tr style="background: #f4f4f4;"><th style="padding:15px;text-align:left">UNIT DESCRIPTION</th><th style="padding:15px">QTY</th><th style="padding:15px;text-align:right">PRICE</th></tr></thead>
             <tbody>${itemsHtml}</tbody>
           </table>
           <div style="width: 300px; margin-left: auto; margin-top: 30px;">
@@ -168,14 +168,14 @@ export default function Admin() {
       discount_percent: vForm.discount_percent 
     }]);
     if (!error) {
-      alert("PROMO DEPLOYED 🎫");
+      alert("PROMO DEPLOYED ");
       setVForm({ code: '', discount_percent: '' });
       fetchVouchers();
     }
   };
 
   const deleteOrder = async (id) => {
-    if (confirm("🚨 SCRAP THIS ORDER RECORD? This cannot be undone.")) {
+    if (confirm(" SCRAP THIS ORDER RECORD? This cannot be undone.")) {
       const { error } = await supabase.from('orders').delete().eq('id', id);
       if (!error) fetchOrders();
     }
@@ -196,7 +196,7 @@ export default function Admin() {
     const { error } = await action;
     
     if (!error) {
-      alert(editingId ? "UNIT UPDATED ⚡" : "GEAR DEPLOYED ⚡");
+      alert(editingId ? "UNIT UPDATED " : "PRODUCT DEPLOYED ");
       setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });
       setEditingId(null);
       fetchProducts();
@@ -206,7 +206,7 @@ export default function Admin() {
     }
   };
 
-  // --- STATS COMPUTATION ---
+  
   const totalRevenue = orders.filter(o => o.status === 'DELIVERED').reduce((a, b) => a + Number(b.total_amount), 0);
   const lowStockItems = products.filter(p => p.stock <= 5);
   const salesData = orders.filter(o => o.status === 'DELIVERED').slice(0, 10).map(o => ({
@@ -217,23 +217,23 @@ export default function Admin() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-[#050505] text-white">
       
-      {/* SIDEBAR */}
+      
       <div className="lg:w-72 bg-[#0d0e12] border-r border-white/5 p-10 flex flex-col justify-between">
         <div className="space-y-12">
           <div>
             <h1 className="text-3xl font-black italic tracking-tighter text-white">PEDAL<span className="text-orange-600">STREET.</span></h1>
             <div className="flex items-center gap-2 mt-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-[8px] font-black text-gray-500 tracking-[0.4em] uppercase">Control Center Active</p>
+                <p className="text-[8px] font-black text-gray-500 tracking-[0.4em] uppercase">PRODUCT AND ORDER MANAGEMENT</p>
             </div>
           </div>
 
           <nav className="space-y-3">
             {[
               { id: 'dashboard', label: 'Overview', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
-              { id: 'inventory', label: 'Gear Stash', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+              { id: 'inventory', label: 'PRODUCTS', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
               { id: 'orders', label: 'Live Dispatch', icon: 'M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z' },
-              { id: 'vouchers', label: 'Promo Node', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' }
+              { id: 'vouchers', label: 'Promo Voucher', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' }
             ].map((tab) => (
               <button 
                 key={tab.id} 
@@ -255,7 +255,7 @@ export default function Admin() {
 
       <div className="flex-1 p-8 lg:p-16 overflow-y-auto">
         
-        {/* DASHBOARD TAB */}
+        
         {activeTab === 'dashboard' && (
           <div className="space-y-12 animate-in fade-in duration-700">
             <header>
@@ -272,13 +272,13 @@ export default function Admin() {
               </div>
               <div className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl">
                 <p className="text-[9px] font-black text-gray-500 uppercase mb-4 tracking-widest flex items-center gap-2">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Vouchers In-Field
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Vouchers 
                 </p>
                 <h3 className="text-5xl font-black italic text-white tracking-tighter">{vouchers.length} Units</h3>
               </div>
               <div className={`bg-[#0d0e12] p-10 rounded-[3rem] border transition-all shadow-2xl ${lowStockItems.length > 0 ? 'border-red-500/50 animate-pulse' : 'border-white/5'}`}>
                 <p className="text-[9px] font-black text-gray-500 uppercase mb-4 tracking-widest flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${lowStockItems.length > 0 ? 'bg-red-500 animate-ping' : 'bg-red-500'}`}></span> Critical Stock
+                    <span className={`w-2 h-2 rounded-full ${lowStockItems.length > 0 ? 'bg-red-500 animate-ping' : 'bg-red-500'}`}></span> Products
                 </p>
                 <h3 className={`text-5xl font-black italic tracking-tighter ${lowStockItems.length > 0 ? 'text-red-500' : 'text-white'}`}>{lowStockItems.length}</h3>
               </div>
@@ -307,14 +307,14 @@ export default function Admin() {
           </div>
         )}
 
-        {/* INVENTORY TAB */}
+        
         {activeTab === 'inventory' && (
           <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-700">
-            {/* Search Gear */}
+            
             <div className="relative">
               <input 
                 className="w-full bg-[#0d0e12] border border-white/10 p-6 pl-14 rounded-3xl text-white text-[10px] font-black uppercase tracking-widest outline-none focus:border-orange-600 transition-all shadow-2xl"
-                placeholder="SCAN GEAR STASH (NAME/CATEGORY)..."
+                placeholder="SEARCH PRODUCT (NAME/CATEGORY)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -326,7 +326,7 @@ export default function Admin() {
                   <form onSubmit={handleSubmit} className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 sticky top-10 shadow-2xl">
                     <h2 className="text-2xl font-black mb-8 uppercase italic flex items-center gap-3">
                       <span className="w-2 h-8 bg-orange-600 inline-block"></span>
-                      {editingId ? "Modify Unit" : "Deploy Gear"}
+                      {editingId ? "Modify Unit" : "ADD PRODUCT"}
                     </h2>
                     <div className="space-y-5">
                       <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs outline-none focus:border-orange-600 transition-all font-bold" placeholder="Product Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
@@ -341,10 +341,10 @@ export default function Admin() {
                         <option value="PARTS">COMPONENTS</option>
                         <option value="GEAR">TACTICAL GEAR</option>
                       </select>
-                      <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none" placeholder="Satellite Image URL" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} required />
-                      <textarea className="w-full bg-black border border-white/5 p-5 rounded-2xl h-32 text-white text-xs font-bold outline-none" placeholder="Technical Specifications" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+                      <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-bold outline-none" placeholder="Image URL" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} required />
+                      <textarea className="w-full bg-black border border-white/5 p-5 rounded-2xl h-32 text-white text-xs font-bold outline-none" placeholder="DESCRIPTION" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
                       <button className="w-full bg-white text-black p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-orange-600 hover:text-white transition-all shadow-xl">
-                          {editingId ? "Update Asset" : "Initialize Deployment"}
+                          {editingId ? "Update Asset" : "Add Product"}
                       </button>
                       {editingId && <button onClick={() => {setEditingId(null); setForm({ name: '', price: '', category: '', description: '', image_url: '', stock: 0 });}} className="w-full text-[9px] text-gray-600 font-black uppercase tracking-widest mt-4 underline">Abort Mission</button>}
                     </div>
@@ -354,7 +354,7 @@ export default function Admin() {
                 <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
                    <table className="w-full text-left">
                      <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
-                       <tr><th className="p-10">Asset</th><th className="p-10">Inventory Control</th><th className="p-10 text-right">Actions</th></tr>
+                       <tr><th className="p-10">Assets</th><th className="p-10">Inventory Control</th><th className="p-10 text-right">Actions</th></tr>
                      </thead>
                      <tbody className="divide-y divide-white/5">
                        {products
@@ -372,7 +372,7 @@ export default function Admin() {
                               </div>
                            </td>
                            <td className="p-10">
-                              {/* QUICK STOCK ADJUSTER */}
+                              
                               <div className="flex items-center gap-4">
                                 <button onClick={() => adjustStock(p.id, p.stock, -1)} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all font-black">-</button>
                                 <span className={`min-w-[60px] text-center px-4 py-2 rounded-full text-[10px] font-black italic border ${p.stock <= 5 ? 'border-red-500 text-red-500 bg-red-500/10 animate-pulse' : 'border-green-500/50 text-green-500 bg-green-500/10'}`}>
@@ -382,8 +382,8 @@ export default function Admin() {
                               </div>
                            </td>
                            <td className="p-10 text-right">
-                             <button onClick={() => {setEditingId(p.id); setForm(p);}} className="text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors mr-6">Modify</button>
-                             <button onClick={async () => {if(confirm("Scrap?")) {await supabase.from('products').delete().eq('id', p.id); fetchProducts();}}} className="text-[10px] font-black uppercase text-red-600/50 hover:text-red-600 transition-colors">Scrap</button>
+                             <button onClick={() => {setEditingId(p.id); setForm(p);}} className="text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors mr-6">EDIT</button>
+                             <button onClick={async () => {if(confirm("Scrap?")) {await supabase.from('products').delete().eq('id', p.id); fetchProducts();}}} className="text-[10px] font-black uppercase text-red-600/50 hover:text-red-600 transition-colors">REMOVE</button>
                            </td>
                          </tr>
                        ))}
@@ -394,14 +394,14 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ORDERS TAB */}
+        
         {activeTab === 'orders' && (
           <div className="space-y-10 animate-in slide-in-from-right-10 duration-700">
-            {/* Search Orders */}
+           
             <div className="relative">
               <input 
                 className="w-full bg-[#0d0e12] border border-white/10 p-6 pl-14 rounded-3xl text-white text-[10px] font-black uppercase tracking-widest outline-none focus:border-orange-600 shadow-2xl"
-                placeholder="SCAN MANIFEST ID OR RECIPIENT..."
+                placeholder="SEARCH ID OR RECIPIENT..."
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
               />
@@ -467,7 +467,7 @@ export default function Admin() {
                     </div>
 
                     <div className="p-12">
-                       <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic">Unit Manifest</p>
+                       <p className="text-[8px] font-black text-orange-600 uppercase mb-6 tracking-[0.4em] italic">PRODUCT DETAILS</p>
                        <div className="space-y-4">
                         {order.order_items?.map((item, idx) => (
                           <div key={idx} className="flex gap-4 items-center bg-black/40 p-3 rounded-2xl border border-white/5">
@@ -493,16 +493,16 @@ export default function Admin() {
           </div>
         )}
 
-        {/* VOUCHERS TAB */}
+        
         {activeTab === 'vouchers' && (
           <div className="grid lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
             <div className="lg:col-span-4">
               <form onSubmit={handleVoucherSubmit} className="bg-[#0d0e12] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-                <h2 className="text-2xl font-black mb-8 uppercase italic">Forge Promo</h2>
+                <h2 className="text-2xl font-black mb-8 uppercase italic">Create Voucher</h2>
                 <div className="space-y-6">
                   <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-600" placeholder="PROMO_CODE" value={vForm.code} onChange={e => setVForm({...vForm, code: e.target.value})} required />
                   <input className="w-full bg-black border border-white/5 p-5 rounded-2xl text-white text-xs font-black focus:border-blue-600 outline-none" type="number" placeholder="Percentage %" value={vForm.discount_percent} onChange={e => setVForm({...vForm, discount_percent: e.target.value})} required />
-                  <button className="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-white hover:text-black transition-all">Activate Node</button>
+                  <button className="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-white hover:text-black transition-all">Activate Voucher</button>
                 </div>
               </form>
             </div>
@@ -510,13 +510,13 @@ export default function Admin() {
             <div className="lg:col-span-8 bg-[#0d0e12] rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl">
                <table className="w-full text-left">
                  <thead className="bg-white/5 uppercase font-black text-gray-500 text-[9px] tracking-widest">
-                   <tr><th className="p-10">Promo Unit</th><th className="p-10">Power</th><th className="p-10 text-right">Status</th></tr>
+                   <tr><th className="p-10">Promo Unit</th><th className="p-10">PERCENTAGE</th><th className="p-10 text-right">Status</th></tr>
                  </thead>
                  <tbody className="divide-y divide-white/5">
                    {vouchers.map(v => (
                      <tr key={v.id}>
                        <td className="p-10 font-black text-blue-500 italic text-2xl">{v.code}</td>
-                       <td className="p-10 font-black text-2xl italic text-white">{v.discount_percent}% REDUCTION</td>
+                       <td className="p-10 font-black text-2xl italic text-white">{v.discount_percent}% DEDUCTION</td>
                        <td className="p-10 text-right"><span className="text-green-500 font-black uppercase text-[10px] italic">Active</span></td>
                      </tr>
                    ))}

@@ -15,34 +15,39 @@ export default function ProductDetails({ addToCart }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchProductAndRelated = async () => {
-      setLoading(true);
-      const { data: mainProduct } = await supabase
+  const fetchProductAndRelated = async () => {
+    
+    setLoading(true);
+    setQuantity(1); 
+
+    const { data: mainProduct, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (mainProduct) {
+      setProduct(mainProduct);
+      if (mainProduct.options?.sizes) setSelectedSize(mainProduct.options.sizes[0]);
+      if (mainProduct.options?.colors) setSelectedColor(mainProduct.options.colors[0]);
+
+      const { data: related } = await supabase
         .from('products')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq('category', mainProduct.category)
+        .neq('id', id)
+        .limit(4);
+      
+      setRelatedProducts(related || []);
+    }
+    setLoading(false);
+  };
 
-      if (mainProduct) {
-        setProduct(mainProduct);
-        if (mainProduct.options?.sizes) setSelectedSize(mainProduct.options.sizes[0]);
-        if (mainProduct.options?.colors) setSelectedColor(mainProduct.options.colors[0]);
+  fetchProductAndRelated();
+  
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        const { data: related } = await supabase
-          .from('products')
-          .select('*')
-          .eq('category', mainProduct.category)
-          .neq('id', id)
-          .limit(4);
-        
-        setRelatedProducts(related || []);
-      }
-      setLoading(false);
-    };
-
-    fetchProductAndRelated();
-    window.scrollTo(0, 0);
-  }, [id]);
+}, [id]); 
 
   const increaseQty = () => {
     if (quantity < product.stock) setQuantity(prev => prev + 1);
@@ -53,7 +58,7 @@ export default function ProductDetails({ addToCart }) {
 
   const handleAddToCart = () => {
   if (product.stock <= 0) {
-    alert("🚨 LOGISTICS ERROR: Out of stock.");
+    alert(" LOGISTICS ERROR: Out of stock.");
     return;
   }
   
@@ -61,21 +66,21 @@ export default function ProductDetails({ addToCart }) {
     ...product, 
     selectedSize, 
     selectedColor, 
-    quantity: Number(quantity) // Siguraduhin na Number ito
+    quantity: Number(quantity) 
   };
   
   addToCart(productWithVariants);
   alert(`Deployed ${quantity} unit(s) to Stash: ${product.name}`);
 };
 
-  // NEW: Logic para sa Buy Now (Shortcut to Checkout - Bypasses Global Cart)
+  
   const handleBuyNow = () => {
     if (product.stock <= 0) {
-      alert("🚨 LOGISTICS ERROR: Out of stock.");
+      alert(" LOGISTICS ERROR: Out of stock.");
       return;
     }
     
-    // Gagawa tayo ng object na bitbit lahat ng choices ng user (size, color, qty)
+    
     const directBuyItem = { 
       ...product, 
       selectedSize, 
@@ -83,8 +88,7 @@ export default function ProductDetails({ addToCart }) {
       quantity 
     };
 
-    // Imbis na addToCart, ipapasa natin ito via navigate state
-    // Parang "Express Lane" ito na hindi dadaan sa main Stash/Cart
+    
     navigate('/checkout', { state: { directBuyItem } });
   };
 
@@ -94,11 +98,11 @@ export default function ProductDetails({ addToCart }) {
         <div className="absolute inset-0 border-4 border-orange-600/20 rounded-full"></div>
         <div className="absolute inset-0 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
-      <p className="mt-8 font-black uppercase tracking-[0.5em] text-orange-600 text-[10px] animate-pulse">Scanning Blueprint...</p>
+      <p className="mt-8 font-black uppercase tracking-[0.5em] text-orange-600 text-[10px] animate-pulse">Loading...</p>
     </div>
   );
 
-  if (!product) return <div className="text-center mt-20 font-black uppercase text-white">Target Not Found.</div>;
+  if (!product) return <div className="text-center mt-20 font-black uppercase text-white">Product Not Found.</div>;
 
   const isOutOfStock = product.stock <= 0;
 
@@ -107,19 +111,19 @@ export default function ProductDetails({ addToCart }) {
       <div className="max-w-7xl mx-auto px-6 py-12">
         
         <button 
-          onClick={() => navigate(-1)} 
-          className="group mb-12 flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 hover:text-orange-600 transition-all"
-        >
-          <div className="w-8 h-8 rounded-full border border-white/5 flex items-center justify-center group-hover:border-orange-600 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
-            </svg>
-          </div>
-          Back to Inventory
-        </button>
+  onClick={() => navigate('/')} 
+  className="group mb-12 flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 hover:text-orange-600 transition-all"
+>
+  <div className="w-8 h-8 rounded-full border border-white/5 flex items-center justify-center group-hover:border-orange-600 transition-colors">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+    </svg>
+  </div>
+  Back to Shopping
+</button>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start mb-32">
-          {/* Image Section */}
+          
           <div className="lg:col-span-7 relative group">
             <div className="relative overflow-hidden rounded-[4rem] border border-white/5 bg-[#111216] shadow-2xl">
               <img 
@@ -131,18 +135,18 @@ export default function ProductDetails({ addToCart }) {
                 <div className={`backdrop-blur-xl border px-6 py-3 rounded-2xl flex items-center gap-3 ${isOutOfStock ? 'bg-red-600/20 border-red-600/50' : 'bg-black/40 border-white/10'}`}>
                   <div className={`w-2 h-2 rounded-full ${isOutOfStock ? 'bg-red-600' : 'bg-green-500 animate-pulse'}`}></div>
                   <span className="text-[10px] font-black uppercase tracking-widest text-white italic">
-                    {isOutOfStock ? 'Depleted' : `Stock: ${product.stock} Units`}
+                    {isOutOfStock ? 'Out of stock' : `Stock: ${product.stock} Units`}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Details Section */}
+          
           <div className="lg:col-span-5 flex flex-col pt-10 sticky top-32">
             <div className="inline-block bg-orange-600/10 border border-orange-600/20 px-4 py-1.5 rounded-full mb-6 w-fit">
               <p className="text-[9px] font-black uppercase tracking-[0.3em] text-orange-600 italic">
-                {product.category} // Tactical Gear
+                {product.category} 
               </p>
             </div>
 
@@ -157,10 +161,10 @@ export default function ProductDetails({ addToCart }) {
             </div>
 
             <div className="space-y-8 mb-12">
-              {/* QUANTITY */}
+              
               {!isOutOfStock && (
                 <div>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4 italic">Payload Quantity</p>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4 italic">Quantity</p>
                   <div className="flex items-center gap-4 bg-white/[0.02] border border-white/10 w-fit rounded-2xl p-2">
                     <button onClick={decreaseQty} className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-white/5 text-white transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M20 12H4" /></svg>
@@ -173,7 +177,7 @@ export default function ProductDetails({ addToCart }) {
                 </div>
               )}
 
-              {/* SIZES */}
+              
               {product.options?.sizes && (
                 <div>
                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4 italic">Frame Size</p>
@@ -187,7 +191,7 @@ export default function ProductDetails({ addToCart }) {
                 </div>
               )}
 
-              {/* COLORS */}
+              
               {product.options?.colors && (
                 <div>
                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4 italic">Skin Variant</p>
@@ -202,34 +206,34 @@ export default function ProductDetails({ addToCart }) {
               )}
             </div>
 
-            {/* ACTION BUTTONS */}
+            
             <div className="flex flex-col gap-4">
-              {/* BUY NOW - PRIMARY */}
+              
               <button 
                 disabled={isOutOfStock}
                 onClick={handleBuyNow}
                 className={`group relative w-full py-8 rounded-[2.5rem] font-black uppercase tracking-[0.4em] text-xs transition-all transform active:scale-95 overflow-hidden ${isOutOfStock ? 'bg-gray-900 text-gray-600 cursor-not-allowed' : 'bg-orange-600 text-white shadow-[0_20px_40px_rgba(234,88,12,0.3)]'}`}
               >
-                <span className="relative z-10">{isOutOfStock ? 'UNAVAILABLE' : 'Initialize Buy Now ⚡'}</span>
+                <span className="relative z-10">{isOutOfStock ? 'UNAVAILABLE' : 'Buy Now '}</span>
                 {!isOutOfStock && <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 mix-blend-difference" />}
               </button>
 
-              {/* ADD TO CART - SECONDARY */}
+              
               <button 
                 disabled={isOutOfStock}
                 onClick={handleAddToCart}
                 className={`w-full py-6 rounded-[2rem] font-black uppercase tracking-[0.4em] text-[10px] transition-all border ${isOutOfStock ? 'border-white/5 text-gray-700' : 'border-white/10 text-white hover:bg-white hover:text-black'}`}
               >
-                Add to Stash Manifest
+                Add to Cart
               </button>
             </div>
           </div>
         </div>
 
-        {/* RELATED PRODUCTS */}
+        
         {relatedProducts.length > 0 && (
           <div className="border-t border-white/5 pt-24">
-            <h2 className="text-5xl md:text-6xl font-black italic uppercase tracking-tighter text-white mb-16">Matching <span className="text-orange-600">Manifest.</span></h2>
+            <h2 className="text-5xl md:text-6xl font-black italic uppercase tracking-tighter text-white mb-16">Related <span className="text-orange-600">Product.</span></h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {relatedProducts.map((item) => (
                 <Link key={item.id} to={`/product/${item.id}`} className="group">
