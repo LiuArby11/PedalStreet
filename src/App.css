@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar {
+  width: 6px; 
+}
+::-webkit-scrollbar-track {
+  background: #0a0b0d; 
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #333 #0a0b0d;
+}
+
+@keyframes glow-move {
+  0% {
+    text-shadow: 0 6px 12px rgba(255, 140, 0, 0.3);
+  }
+  50% {
+    text-shadow: 0 10px 24px rgba(255, 140, 0.8);
+  }
+  100% {
+    text-shadow: 0 6px 12px rgba(255, 140, 0.3);
+  }
+}
+.animate-bottom-glow {
+  animation: glow-move 2.5s ease-in-out infinite;
+}
