@@ -30,6 +30,24 @@ export default function UpdatePassword({ darkMode }) {
     let redirectTimer = null;
 
     const init = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const tokenType = hashParams.get('type');
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (tokenType === 'recovery' && accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (!error) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setIsReady(true);
+          return;
+        }
+      }
+
       const { data } = await supabase.auth.getSession();
       if (data?.session) {
         setIsReady(true);
