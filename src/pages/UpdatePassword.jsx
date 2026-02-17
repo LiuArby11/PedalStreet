@@ -103,6 +103,10 @@ export default function UpdatePassword({ darkMode }) {
   return (
     <div className={`min-h-screen ${themeBgMain} flex items-center justify-center ${themeTextMain} font-sans px-6 transition-colors duration-500`}>
       <div className={`w-full max-w-[400px] ${themeCard} p-10 rounded-[3rem] border relative overflow-hidden transition-all duration-500`}>
+        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-6 ${isDark ? 'border-orange-600/30 bg-orange-600/10 text-orange-400' : 'border-orange-600/20 bg-orange-50 text-orange-700'}`}>
+          <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
+          <span className="text-[8px] font-black uppercase tracking-[0.25em]">Recovery Mode</span>
+        </div>
         
         <h2 className={`text-4xl font-black italic uppercase tracking-tighter mb-6 leading-none ${themeTextMain}`}>
           NEW <span className="text-orange-600">KEY.</span>

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -18,6 +18,16 @@ import Terms from './pages/Terms';
 import ReturnsPolicy from './pages/ReturnsPolicy';
 import Modal from './components/Modal';
 import Toast from './components/Toast';
+
+function RouteChangeWatcher({ onPathChange }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    onPathChange(location.pathname);
+  }, [location.pathname, onPathChange]);
+
+  return null;
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -45,6 +55,10 @@ export default function App() {
     'U';
 
   const userInitial = displayName.charAt(0).toUpperCase();
+  const [currentPathname, setCurrentPathname] = useState(
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+  const isPasswordRecoveryRoute = currentPathname === '/update-password';
 
   const [cart, setCart] = useState(() => {
     const savedStash = localStorage.getItem('pedal_street_cart');
@@ -142,8 +156,10 @@ export default function App() {
 
   return (
     <Router>
+      <RouteChangeWatcher onPathChange={setCurrentPathname} />
       <div className={`min-h-screen ${themeBg} ${themeText} font-sans selection:bg-orange-600 selection:text-white transition-colors duration-500`}>
         
+        {!isPasswordRecoveryRoute && (
         <nav className={`sticky top-0 z-[100] ${themeNav} backdrop-blur-2xl border-b shadow-2xl transition-colors`}>
           <div className="max-w-7xl mx-auto px-4 lg:px-6 h-16 lg:h-20 flex justify-between items-center">
             
@@ -229,6 +245,7 @@ export default function App() {
             </div>
           </div>
         </nav>
+        )}
 
         <main className="relative z-10">
           <Routes>
@@ -252,6 +269,7 @@ export default function App() {
           </Routes>
         </main>
 
+        {!isPasswordRecoveryRoute && (
         <footer className={`border-t ${darkMode ? 'border-white/5 bg-[#07080a]' : 'border-black/10 bg-[#f1f2f5]'} mt-16`}>
           <div className="max-w-7xl mx-auto px-4 lg:px-6 py-12 lg:py-16 grid grid-cols-1 md:grid-cols-3 gap-10 lg:gap-16">
             <div>
@@ -295,6 +313,7 @@ export default function App() {
             </div>
           </div>
         </footer>
+        )}
       </div>
       <Modal modal={modal} setModal={setModal} />
       <Toast toast={toast} setToast={setToast} />
