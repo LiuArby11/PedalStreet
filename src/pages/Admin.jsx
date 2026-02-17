@@ -68,6 +68,7 @@
       fetchOrders();
       fetchVouchers();
       fetchCategories();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -341,6 +342,7 @@
       if (activeTab === 'audit') fetchAuditLogs();
       if (activeTab === 'users') fetchUsers();
       if (activeTab === 'categories') fetchCategories();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
 
     useEffect(() => {
@@ -706,7 +708,7 @@
               <div style="text-align: right"><div class="badge"> Delivery</div><p>${new Date(order.created_at).toLocaleString()}</p></div>
             </div>
             <div style="margin: 40px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-              <div><h4 style="margin-bottom: 5px; text-decoration: underline;">RECIPIENT</h4><strong>${order.profiles?.first_name} ${order.profiles?.last_name}</strong><br>${order.address}<br>T: ${order.phone}</div>
+              <div><h4 style="margin-bottom: 5px; text-decoration: underline;">RECIPIENT</h4><strong>${order.profiles?.first_name} ${order.profiles?.last_name}</strong><br>${order.address}<br>T: ${order.phone}<br>INS: ${order.delivery_instructions || 'N/A'}</div>
               <div style="text-align: right"><h4 style="margin-bottom: 5px; text-decoration: underline;">PAYMENT METHOD</h4><strong>${order.payment_method}</strong></div>
             </div>
             <table>
@@ -1236,6 +1238,7 @@
 
     useEffect(() => {
       fetchVariantStocks(products);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [products]);
 
     return (
@@ -1544,8 +1547,8 @@
                               return (
                               <tr key={p.id} className={`${darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-gray-50'} transition-colors group ${p.is_archived ? 'opacity-50 grayscale' : ''}`}>
                                 <td className="p-6 lg:p-10 flex items-center gap-6">
-                                    <div className={`relative w-16 h-16 lg:w-20 lg:h-20 overflow-hidden rounded-2xl border ${darkMode ? 'border-white/5 bg-black' : 'border-gray-200 bg-gray-100'}`}>
-                                        <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-80" alt={p.name} />
+                                    <div className="relative w-16 h-16 lg:w-20 lg:h-20 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                                        <img src={p.image_url} className="w-full h-full object-contain object-center" alt={p.name} />
                                     </div>
                                     <div>
                                         <p className="text-[8px] font-black text-orange-600 mb-1 tracking-widest uppercase">{p.category}</p>
@@ -1763,6 +1766,12 @@
                           <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic flex items-center gap-2">Recipient Info</p>
                           <h3 className={`text-2xl lg:text-3xl font-black italic uppercase leading-none ${themeTextMain}`}>{order.profiles?.first_name} {order.profiles?.last_name}</h3>
                           <p className={`text-[10px] ${themeTextSub} mt-6 font-bold leading-relaxed`}>📍 {order.address}<br/>📞 {order.phone}</p>
+                          <div className={`${darkMode ? 'bg-orange-600/10 border-orange-500/30 text-orange-300' : 'bg-orange-50 border-orange-200 text-orange-700'} border rounded-xl px-3 py-2 mt-4`}>
+                            <p className="text-[8px] font-black uppercase tracking-[0.25em] mb-1">Delivery Instructions</p>
+                            <p className="text-[10px] font-bold leading-relaxed normal-case tracking-normal">
+                              {order.delivery_instructions || 'No delivery instructions provided.'}
+                            </p>
+                          </div>
                       </div>
 
                       <div className="p-8 lg:p-12">
@@ -1770,7 +1779,9 @@
                           <div className="space-y-4">
                           {order.order_items?.map((item, idx) => (
                               <div key={idx} className={`flex gap-4 items-center ${darkMode ? 'bg-black/40 border-white/5' : 'bg-gray-50 border-gray-200'} p-3 rounded-2xl border`}>
-                              <img src={item.products?.image_url} className="w-12 h-12 object-cover rounded-xl" alt="" />
+                              <div className="w-12 h-12 rounded-xl bg-white border border-black/10 overflow-hidden">
+                                <img src={item.products?.image_url} className="w-full h-full object-contain object-center" alt="" />
+                              </div>
                               <div>
                                   <p className={`text-[10px] font-black uppercase italic ${themeTextMain} leading-tight`}>{item.products?.name}</p>
                                   <p className="text-[9px] font-bold text-orange-600 uppercase mt-1">Qty: {item.quantity}</p>

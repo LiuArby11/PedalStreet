@@ -9,6 +9,7 @@ export default function Profile({ userProfile, session, darkMode }) {
     last_name: '',
     username: '',
     phone: '',
+    address: '',
   });
   const accountEmail = session?.user?.email || '';
 
@@ -24,26 +25,29 @@ export default function Profile({ userProfile, session, darkMode }) {
   };
 
   useEffect(() => {
-    if (userProfile) {
-      setProfileRecord(userProfile);
-      setFormData({
-        first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
-        username: userProfile.username || '',
-        phone: userProfile.phone || '',
-      });
-    }
-  }, [userProfile]);
-
-  useEffect(() => {
     const hydrateProfile = async () => {
       if (!session?.user?.id) return;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, username, phone, is_admin')
-        .eq('id', session.user.id)
-        .maybeSingle();
+      const attempts = [
+        'first_name, last_name, username, phone, address, is_admin',
+        'first_name, last_name, username, phone, is_admin',
+      ];
+
+      let data = null;
+      let error = null;
+      for (const selectClause of attempts) {
+        const result = await supabase
+          .from('profiles')
+          .select(selectClause)
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (!result.error && result.data) {
+          data = result.data;
+          error = null;
+          break;
+        }
+        error = result.error;
+      }
 
       if (!error && data) {
         setProfileRecord(data);
@@ -52,6 +56,7 @@ export default function Profile({ userProfile, session, darkMode }) {
           last_name: data.last_name || '',
           username: data.username || '',
           phone: data.phone || '',
+          address: data.address || '',
         });
         return;
       }
@@ -62,6 +67,7 @@ export default function Profile({ userProfile, session, darkMode }) {
         last_name: prev.last_name || meta.lastName || meta.last_name || '',
         username: prev.username || meta.username || '',
         phone: prev.phone || meta.phone || '',
+        address: prev.address || meta.address || '',
       }));
     };
 
@@ -76,18 +82,38 @@ export default function Profile({ userProfile, session, darkMode }) {
       last_name: profileRecord?.last_name || '',
       username: profileRecord?.username || '',
       phone: profileRecord?.phone || '',
+      address: profileRecord?.address || '',
       is_admin: !!profileRecord?.is_admin,
     };
 
-    const { error } = await supabase
+    const basePayload = {
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      username: formData.username,
+      phone: formData.phone,
+      address: formData.address,
+    };
+
+    let error = null;
+    let updateResult = await supabase
       .from('profiles')
-      .update({
+      .update(basePayload)
+      .eq('id', session.user.id);
+
+    if (updateResult.error && String(updateResult.error.code || '') === '42703') {
+      const fallbackPayload = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         username: formData.username,
         phone: formData.phone,
-      })
-      .eq('id', session.user.id);
+      };
+      updateResult = await supabase
+        .from('profiles')
+        .update(fallbackPayload)
+        .eq('id', session.user.id);
+    }
+
+    error = updateResult.error;
 
     if (error) {
       showModal("error", "SYNC FAILED", error.message);
@@ -127,6 +153,7 @@ export default function Profile({ userProfile, session, darkMode }) {
   const themeTextSub = darkMode ? 'text-gray-500' : 'text-gray-600';
   const themeInput = darkMode ? 'bg-black/50 border-white/5 text-white' : 'bg-gray-100 border-gray-300 text-black';
   const themeButton = darkMode ? 'bg-white text-black' : 'bg-black text-white';
+  const isAdminProfile = !!profileRecord?.is_admin;
 
   return (
     <div className={`min-h-screen ${themeBgMain} pt-24 md:pt-32 pb-12 md:pb-20 px-4 md:px-6 transition-colors duration-500`}>
@@ -187,16 +214,30 @@ export default function Profile({ userProfile, session, darkMode }) {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[8px] font-black text-orange-600 uppercase tracking-widest ml-2">Phone Number</label>
-              <input 
-                type="text"
-                required
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:border-orange-600 transition-all`}
-              />
-            </div>
+            {!isAdminProfile && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-[8px] font-black text-orange-600 uppercase tracking-widest ml-2">Address</label>
+                  <textarea
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:border-orange-600 transition-all min-h-[110px] resize-y`}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[8px] font-black text-orange-600 uppercase tracking-widest ml-2">Phone Number</label>
+                  <input 
+                    type="text"
+                    required
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:border-orange-600 transition-all`}
+                  />
+                </div>
+              </>
+            )}
 
             <button 
               disabled={loading}

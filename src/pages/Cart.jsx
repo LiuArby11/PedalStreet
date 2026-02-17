@@ -1,9 +1,36 @@
-import { useState, useEffect } from 'react'; 
+import { useMemo, useState } from 'react'; 
 import { useNavigate } from 'react-router-dom';
+
+const buildItemKey = (item) => `${item.id}-${item.selectedSize}-${item.selectedColor}`;
+
+function CartProgressBar({ isDark }) {
+  return (
+    <div className="max-w-2xl mx-auto mb-10 md:mb-16 px-4">
+      <div className="flex justify-between items-center relative">
+        <div className={`absolute h-[1px] w-full ${isDark ? 'bg-white/10' : 'bg-black/10'} top-1/2 -translate-y-1/2 z-0`} />
+        <div className="absolute h-[2px] w-[33%] bg-orange-600 top-1/2 -translate-y-1/2 z-0 shadow-[0_0_15px_rgba(234,88,12,0.5)] transition-all duration-1000" />
+        {[
+          { step: '01', label: 'Cart', active: true },
+          { step: '02', label: 'Checkout', active: false },
+          { step: '03', label: 'Payment', active: false }
+        ].map((s, idx) => (
+          <div key={idx} className="relative z-10 flex flex-col items-center">
+            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-black italic text-[9px] md:text-[10px] border-2 transition-all duration-700 ${s.active ? 'bg-orange-600 border-orange-600 text-white rotate-0 shadow-[0_0_20px_rgba(234,88,12,0.2)]' : `${isDark ? 'bg-[#0a0b0d] border-white/10 text-gray-700' : 'bg-gray-200 border-black/5 text-gray-400'} rotate-[15deg]`}`}>
+              {s.step}
+            </div>
+            <span className={`absolute -bottom-7 md:-bottom-8 font-black uppercase text-[6px] md:text-[7px] tracking-[0.3em] whitespace-nowrap ${s.active ? 'text-orange-600' : 'text-gray-500'}`}>
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Cart({ cart, setCart, darkMode }) {
   const navigate = useNavigate();
-  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState(() => (cart || []).map(buildItemKey));
   const [modal, setModal] = useState({
     open: false,
     type: "info",
@@ -19,32 +46,31 @@ export default function Cart({ cart, setCart, darkMode }) {
     setModal({ ...modal, open: false });
   };
 
-  useEffect(() => {
-    if (cart.length > 0 && selectedItems.length === 0) {
-      const allKeys = cart.map(item => `${item.id}-${item.selectedSize}-${item.selectedColor}`);
-      setSelectedItems(allKeys);
-    }
-  }, [cart]);
+  const cartItemKeys = useMemo(() => (cart || []).map(buildItemKey), [cart]);
+  const selectedItemsInCart = useMemo(
+    () => selectedItems.filter((key) => cartItemKeys.includes(key)),
+    [selectedItems, cartItemKeys]
+  );
+  const selectedSet = useMemo(() => new Set(selectedItemsInCart), [selectedItemsInCart]);
 
-  const isAllSelected = cart.length > 0 && selectedItems.length === cart.length;
+  const isAllSelected = cart.length > 0 && selectedItemsInCart.length === cart.length;
 
   const handleSelectAll = () => {
     if (isAllSelected) {
       setSelectedItems([]);
     } else {
-      const allKeys = cart.map(item => `${item.id}-${item.selectedSize}-${item.selectedColor}`);
-      setSelectedItems(allKeys);
+      setSelectedItems(cartItemKeys);
     }
   };
 
   const deleteSelected = () => {
-    if (selectedItems.length === 0) return;
-    showModal("confirm", "REMOVE CONFIRMATION", `Are you sure you want to remove ${selectedItems.length} item(s) from your cart?`);
+    if (selectedItemsInCart.length === 0) return;
+    showModal("confirm", "REMOVE CONFIRMATION", `Are you sure you want to remove ${selectedItemsInCart.length} item(s) from your cart?`);
   };
 
   const confirmDelete = () => {
     const remainingCart = cart.filter(item => 
-      !selectedItems.includes(`${item.id}-${item.selectedSize}-${item.selectedColor}`)
+      !selectedSet.has(buildItemKey(item))
     );
     setCart(remainingCart);
     setSelectedItems([]);
@@ -58,8 +84,7 @@ export default function Cart({ cart, setCart, darkMode }) {
   };
 
   const total = cart?.reduce((sum, item) => {
-    const itemKey = `${item.id}-${item.selectedSize}-${item.selectedColor}`;
-    return selectedItems.includes(itemKey) ? sum + (Number(item.price) * Number(item.quantity)) : sum;
+    return selectedSet.has(buildItemKey(item)) ? sum + (Number(item.price) * Number(item.quantity)) : sum;
   }, 0) || 0;
 
   const removeItem = (id, size, color) => {
@@ -86,31 +111,7 @@ export default function Cart({ cart, setCart, darkMode }) {
   const themeBgMain = isDark ? 'bg-black' : 'bg-[#f4f4f7]';
   const themeCard = isDark ? 'bg-[#0d0e12] border-white/5' : 'bg-white border-gray-200 shadow-xl';
   const themeTextMain = isDark ? 'text-white' : 'text-gray-900';
-  const themeTextSub = isDark ? 'text-gray-500' : 'text-gray-600';
   const themeSidebar = isDark ? 'bg-[#111216] border-white/5' : 'bg-white border-gray-200 shadow-2xl';
-
-  const ProgressBar = () => (
-    <div className="max-w-2xl mx-auto mb-10 md:mb-16 px-4">
-      <div className="flex justify-between items-center relative">
-        <div className={`absolute h-[1px] w-full ${isDark ? 'bg-white/10' : 'bg-black/10'} top-1/2 -translate-y-1/2 z-0`} />
-        <div className="absolute h-[2px] w-[33%] bg-orange-600 top-1/2 -translate-y-1/2 z-0 shadow-[0_0_15px_rgba(234,88,12,0.5)] transition-all duration-1000" />
-        {[
-          { step: '01', label: 'Cart', active: true },
-          { step: '02', label: 'Checkout', active: false },
-          { step: '03', label: 'Payment', active: false }
-        ].map((s, idx) => (
-          <div key={idx} className="relative z-10 flex flex-col items-center">
-            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-black italic text-[9px] md:text-[10px] border-2 transition-all duration-700 ${s.active ? 'bg-orange-600 border-orange-600 text-white rotate-0 shadow-[0_0_20px_rgba(234,88,12,0.2)]' : `${isDark ? 'bg-[#0a0b0d] border-white/10 text-gray-700' : 'bg-gray-200 border-black/5 text-gray-400'} rotate-[15deg]`}`}>
-              {s.step}
-            </div>
-            <span className={`absolute -bottom-7 md:-bottom-8 font-black uppercase text-[6px] md:text-[7px] tracking-[0.3em] whitespace-nowrap ${s.active ? 'text-orange-600' : 'text-gray-500'}`}>
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   if (!cart || cart.length === 0) return (
     <div className={`min-h-screen ${themeBgMain} flex flex-col items-center justify-center px-6 text-center relative overflow-hidden transition-colors duration-500`}>
@@ -130,7 +131,7 @@ export default function Cart({ cart, setCart, darkMode }) {
   return (
     <div className={`${themeBgMain} min-h-screen transition-colors duration-500 pb-20`}>
       <div className="max-w-7xl mx-auto py-8 md:py-16 px-4 md:px-6">
-        <ProgressBar />
+        <CartProgressBar isDark={isDark} />
 
         <div className="mb-10 md:mb-16 mt-12 md:mt-20 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
@@ -152,12 +153,12 @@ export default function Cart({ cart, setCart, darkMode }) {
               </span>
             </button>
 
-            {selectedItems.length > 0 && (
+            {selectedItemsInCart.length > 0 && (
               <button 
                 onClick={deleteSelected}
                 className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all group"
               >
-                <span className="font-black uppercase text-[7px] md:text-[8px] tracking-widest text-red-500 group-hover:text-white">REMOVE ({selectedItems.length})</span>
+                <span className="font-black uppercase text-[7px] md:text-[8px] tracking-widest text-red-500 group-hover:text-white">REMOVE ({selectedItemsInCart.length})</span>
               </button>
             )}
           </div>
@@ -166,8 +167,8 @@ export default function Cart({ cart, setCart, darkMode }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-start">
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             {cart.map((item) => {
-              const itemKey = `${item.id}-${item.selectedSize}-${item.selectedColor}`;
-              const isSelected = selectedItems.includes(itemKey);
+              const itemKey = buildItemKey(item);
+              const isSelected = selectedSet.has(itemKey);
 
               return (
                 <div key={itemKey} className={`group relative transition-all duration-500 ${!isSelected ? 'opacity-40 grayscale scale-[0.98]' : ''}`}>
@@ -178,8 +179,8 @@ export default function Cart({ cart, setCart, darkMode }) {
                         {isSelected && <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                       </button>
 
-                      <div className="relative h-40 w-full sm:w-48 md:w-56 flex-shrink-0 overflow-hidden rounded-[1rem] md:rounded-[1.5rem] bg-black">
-                        <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[1s]" />
+                      <div className="relative h-40 w-full sm:w-48 md:w-56 flex-shrink-0 overflow-hidden rounded-[1rem] md:rounded-[1.5rem] bg-white">
+                        <img src={item.image_url} alt={item.name} className="w-full h-full object-contain object-center" />
                         
                         <button onClick={() => toggleSelect(itemKey)} className="sm:hidden absolute top-3 left-3 w-8 h-8 rounded-lg bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center">
                           <div className={`w-4 h-4 rounded border ${isSelected ? 'bg-orange-600 border-orange-600' : 'border-white/50'}`}>
@@ -255,13 +256,13 @@ export default function Cart({ cart, setCart, darkMode }) {
                 </div>
                 <button 
                   onClick={() => {
-                    if(selectedItems.length === 0) {showModal("error", "ERROR", "Select items to deploy.");
+                    if(selectedItemsInCart.length === 0) {showModal("error", "ERROR", "Select items to deploy.");
                     return;
                     }
-                    const finalItems = cart.filter(item => selectedItems.includes(`${item.id}-${item.selectedSize}-${item.selectedColor}`));
+                    const finalItems = cart.filter(item => selectedSet.has(buildItemKey(item)));
                     navigate('/checkout', { state: { items: finalItems, total } });
                   }}
-                  disabled={selectedItems.length === 0}
+                  disabled={selectedItemsInCart.length === 0}
                   className={`group relative w-full overflow-hidden ${isDark ? 'bg-white text-black' : 'bg-black text-white'} py-5 md:py-6 rounded-xl font-black uppercase tracking-[0.4em] text-[8px] md:text-[9px] transition-all hover:bg-orange-600 hover:text-white disabled:opacity-30 active:scale-95 shadow-xl`}
                 >
                   <span className="relative z-10">Checkout &rarr;</span>

@@ -26,10 +26,14 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState(null);
   const [promoError, setPromoError] = useState('');
+  const [contactOptions, setContactOptions] = useState([]);
+  const [selectedContactKey, setSelectedContactKey] = useState('');
+  const [contactLoading, setContactLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     address: '',
     phone: '',
+    delivery_instructions: '',
     payment_method: 'COD',
     payment_details: ''
   });
@@ -57,7 +61,84 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
     } else {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
-  }, [navigate]);
+  }, [navigate, activeItems.length]);
+
+  useEffect(() => {
+    const fetchSavedContacts = async () => {
+      if (!session?.user?.id) return;
+
+      setContactLoading(true);
+      const options = [];
+      const seen = new Set();
+
+      const pushContact = (address, phone, source) => {
+        const cleanAddress = String(address || '').trim();
+        const cleanPhone = String(phone || '').trim();
+        if (!cleanAddress || !cleanPhone) return;
+        const key = `${cleanAddress}__${cleanPhone}`.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        options.push({
+          key,
+          address: cleanAddress,
+          phone: cleanPhone,
+          label: source,
+        });
+      };
+
+      const profileAttempts = [
+        'address, phone',
+        'phone',
+      ];
+
+      for (const selectClause of profileAttempts) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select(selectClause)
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (!error && data) {
+          pushContact(data.address, data.phone, 'Profile Default');
+          break;
+        }
+      }
+
+      const { data: orderContacts } = await supabase
+        .from('orders')
+        .select('address, phone, created_at')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      (orderContacts || []).forEach((row, idx) => {
+        pushContact(row.address, row.phone, idx === 0 ? 'Recent Order' : `Order #${idx + 1}`);
+      });
+
+      setContactOptions(options);
+      if (options.length > 0) {
+        setSelectedContactKey(options[0].key);
+        setFormData((prev) => ({
+          ...prev,
+          address: options[0].address,
+          phone: options[0].phone,
+        }));
+      }
+      setContactLoading(false);
+    };
+
+    fetchSavedContacts();
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedContactKey || contactOptions.length === 0) return;
+    const chosen = contactOptions.find((opt) => opt.key === selectedContactKey);
+    if (!chosen) return;
+    setFormData((prev) => ({
+      ...prev,
+      address: chosen.address,
+      phone: chosen.phone,
+    }));
+  }, [selectedContactKey, contactOptions]);
 
   const applyPromoCode = async () => {
     setPromoError('');
@@ -193,6 +274,11 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
     e.preventDefault();
     if (activeItems.length === 0) return;
 
+    if (!String(formData.address || '').trim() || !String(formData.phone || '').trim()) {
+      showModal("error", "DELIVERY PROFILE REQUIRED", "Please save your delivery address and phone in Profile first.");
+      return;
+    }
+
     if (formData.payment_method === 'GCASH' && !formData.payment_details) {
       showModal("error", "AUTHENTICATION REQUIRED", "Enter GCash Reference Number.");
       return;
@@ -237,19 +323,36 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
         });
       }
 
-      const { data: order, error: orderError } = await supabase
+      const orderPayload = {
+        user_id: session.user.id,
+        total_amount: total,
+        status: 'PROCESSING',
+        address: formData.address,
+        phone: formData.phone,
+        delivery_instructions: formData.delivery_instructions,
+        payment_method: formData.payment_method,
+        payment_details: formData.payment_details,
+        promo_applied: appliedCode
+      };
+
+      let orderResult = await supabase
         .from('orders')
-        .insert([{
-          user_id: session.user.id,
-          total_amount: total,
-          status: 'PROCESSING',
-          address: formData.address,
-          phone: formData.phone,
-          payment_method: formData.payment_method,
-          payment_details: formData.payment_details,
-          promo_applied: appliedCode
-        }])
-        .select().single();
+        .insert([orderPayload])
+        .select()
+        .single();
+
+      if (orderResult.error && String(orderResult.error.code || '') === '42703') {
+        const fallbackPayload = { ...orderPayload };
+        delete fallbackPayload.delivery_instructions;
+        orderResult = await supabase
+          .from('orders')
+          .insert([fallbackPayload])
+          .select()
+          .single();
+      }
+
+      const order = orderResult.data;
+      const orderError = orderResult.error;
 
       if (orderError) throw orderError;
 
@@ -371,20 +474,50 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
             
             <form onSubmit={handleCheckout} className="space-y-6 md:space-y-8">
               <div className="space-y-4 md:space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.35em] text-orange-600">Saved Delivery Contact</label>
+                  <select
+                    value={selectedContactKey}
+                    onChange={(e) => setSelectedContactKey(e.target.value)}
+                    className={`w-full ${themeInput} rounded-xl md:rounded-2xl p-4 md:p-5 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                    disabled={contactLoading || contactOptions.length === 0}
+                  >
+                    {contactOptions.length === 0 && <option value="">No saved contacts yet</option>}
+                    {contactOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label}: {opt.phone}
+                      </option>
+                    ))}
+                  </select>
+                  {contactOptions.length === 0 && (
+                    <div className="space-y-3">
+                      <p className="text-[9px] text-red-500 font-black">
+                        Save your address and phone in Profile first, then return to checkout.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/profile')}
+                        className="px-4 py-2 rounded-xl bg-orange-600 text-white text-[9px] font-black uppercase tracking-[0.2em] hover:bg-black transition-colors"
+                      >
+                        Go to Profile
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className={`${isDark ? 'bg-white/[0.02] border-white/10' : 'bg-gray-50 border-black/10'} border rounded-[1.2rem] md:rounded-[1.6rem] p-4 md:p-5`}>
+                  <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${themeTextSub} mb-2`}>Delivery Address</p>
+                  <p className={`text-[11px] md:text-sm font-bold ${themeTextMain}`}>{formData.address || 'No address selected'}</p>
+                  <p className={`mt-4 text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${themeTextSub}`}>Contact Number</p>
+                  <p className={`text-[11px] md:text-sm font-bold ${themeTextMain}`}>{formData.phone || 'No phone selected'}</p>
+                </div>
+
                 <textarea 
                   required 
-                  className={`w-full ${themeInput} rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 text-xs md:text-sm outline-none focus:border-orange-600 min-h-[120px] transition-all placeholder:text-gray-500`} 
-                  placeholder="ENTER COMPLETE DELIVERY ADDRESS" 
-                  value={formData.address} 
-                  onChange={(e) => setFormData({...formData, address: e.target.value})} 
-                />
-                <input 
-                  type="text" 
-                  required 
-                  className={`w-full ${themeInput} rounded-xl md:rounded-2xl p-5 md:p-6 text-xs md:text-sm outline-none focus:border-orange-600 transition-all placeholder:text-gray-500 font-mono`} 
-                  placeholder="CONTACT NUMBER (+63)" 
-                  value={formData.phone} 
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})} 
+                  className={`w-full ${themeInput} rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 text-xs md:text-sm outline-none focus:border-orange-600 min-h-[110px] transition-all placeholder:text-gray-500`} 
+                  placeholder="DELIVERY INSTRUCTIONS (e.g. gate color, landmark, recipient note)" 
+                  value={formData.delivery_instructions} 
+                  onChange={(e) => setFormData({...formData, delivery_instructions: e.target.value})} 
                 />
               </div>
 
@@ -442,8 +575,8 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
               {activeItems.map((item, idx) => (
                 <div key={`${item.id}-${idx}`} className={`flex justify-between items-center group/item border-b ${isDark ? 'border-white/[0.03]' : 'border-black/[0.03]'} pb-4 md:pb-6 last:border-0`}>
                   <div className="flex gap-3 md:gap-4 items-center">
-                    <div className={`relative h-16 w-16 md:h-20 md:w-20 flex-shrink-0 overflow-hidden rounded-xl md:rounded-2xl ${isDark ? 'bg-black' : 'bg-gray-100'} border ${isDark ? 'border-white/5' : 'border-black/5'}`}>
-                      <img src={item.image_url} className="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-500" alt={item.name} />
+                    <div className="relative h-16 w-16 md:h-20 md:w-20 flex-shrink-0 overflow-hidden rounded-xl md:rounded-2xl bg-white border border-black/5">
+                      <img src={item.image_url} className="w-full h-full object-contain object-center" alt={item.name} />
                       <div className="absolute -top-1 -right-1 bg-orange-600 text-[8px] md:text-[10px] font-black px-2 py-1 rounded-bl-lg shadow-lg text-white">
                         {item.quantity}
                       </div>

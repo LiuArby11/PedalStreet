@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 
 export default function Modal({ modal, setModal, onConfirm, onClose }) {
-  if (!modal.open) return null;
-
   const bgColor =
     modal.type === "error"
       ? "bg-red-600"
@@ -12,10 +10,10 @@ export default function Modal({ modal, setModal, onConfirm, onClose }) {
           ? "bg-yellow-500"
           : "bg-white";
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModal({ ...modal, open: false });
     if (onClose) onClose();
-  };
+  }, [modal, onClose, setModal]);
 
   const confirmToneClass =
     modal.confirmTone === 'danger'
@@ -27,6 +25,7 @@ export default function Modal({ modal, setModal, onConfirm, onClose }) {
           : 'bg-orange-600 hover:bg-white hover:text-black text-white';
 
   useEffect(() => {
+    if (!modal.open) return undefined;
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
         if (modal.type !== 'confirm') closeModal();
@@ -34,7 +33,9 @@ export default function Modal({ modal, setModal, onConfirm, onClose }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modal.type]);
+  }, [closeModal, modal.open, modal.type]);
+
+  if (!modal.open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 px-6">

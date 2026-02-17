@@ -280,10 +280,10 @@ export default function Orders({ darkMode }) {
                     <div className="flex items-center gap-4 md:gap-8">
                       <div className="flex -space-x-4 md:-space-x-5 shrink-0">
                         {items.slice(0, 3).map((item, i) => (
-                          <div key={i} className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-[1.25rem] border-2 md:border-4 ${isDark ? 'border-[#0d0e12]' : 'border-white'} bg-zinc-900 overflow-hidden shadow-2xl relative`}>
+                          <div key={i} className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-[1.25rem] border-2 md:border-4 ${isDark ? 'border-[#0d0e12]' : 'border-white'} bg-white overflow-hidden shadow-2xl relative`}>
                             <img 
                               src={item.products?.image_url} 
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                              className="w-full h-full object-contain object-center" 
                               alt="" 
                             />
                           </div>
@@ -346,11 +346,11 @@ export default function Orders({ darkMode }) {
                     <div className="grid grid-cols-1 gap-3 md:gap-4">
                       {items.map((item, idx) => (
                         <div key={idx} className={`flex items-center gap-4 md:gap-8 ${isDark ? 'bg-white/[0.02]' : 'bg-gray-50'} p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border ${isDark ? 'border-white/5' : 'border-black/5'} group/item hover:border-orange-600/30 transition-colors`}>
-                          <div className="w-16 h-16 md:w-24 md:h-24 rounded-[1rem] md:rounded-[1.5rem] overflow-hidden bg-black border border-white/10 shrink-0 shadow-lg">
+                          <div className="w-16 h-16 md:w-24 md:h-24 rounded-[1rem] md:rounded-[1.5rem] overflow-hidden bg-white border border-black/10 shrink-0 shadow-lg">
                             <img 
                               src={item.products?.image_url} 
                               alt={item.products?.name} 
-                              className="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-700"
+                              className="w-full h-full object-contain object-center"
                             />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -374,6 +374,12 @@ export default function Orders({ darkMode }) {
                             TEL: {order.phone} <br /> 
                             LOC: {order.address}
                           </p>
+                          <div className={`${isDark ? 'bg-orange-600/10 border-orange-500/30 text-orange-300' : 'bg-orange-50 border-orange-200 text-orange-700'} border rounded-xl px-3 py-2 mt-2`}>
+                            <p className="text-[8px] font-black uppercase tracking-[0.25em] mb-1">Delivery Instructions</p>
+                            <p className="text-[10px] md:text-xs font-bold leading-relaxed normal-case tracking-normal">
+                              {order.delivery_instructions || 'No delivery instructions provided.'}
+                            </p>
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <p className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em] italic">Mode of Payment</p>

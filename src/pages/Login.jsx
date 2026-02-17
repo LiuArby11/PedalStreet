@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 export default function Login({ darkMode }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [modal, setModal] = useState({
@@ -22,32 +23,41 @@ export default function Login({ darkMode }) {
     setModal({ ...modal, open: false });
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  const lookupProfileByUsername = async (rawUsername) => {
+    const normalizedUsername = String(rawUsername || '').trim();
+    if (!normalizedUsername) return { userRecord: null, lookupError: null };
 
     let userRecord = null;
-    let profileError = null;
+    let lookupError = null;
 
     const profileWithEmailCopy = await supabase
       .from('profiles')
       .select('email_copy')
-      .eq('username', username)
-      .single();
+      .ilike('username', normalizedUsername)
+      .limit(1);
 
     if (!profileWithEmailCopy.error) {
-      userRecord = profileWithEmailCopy.data;
+      userRecord = profileWithEmailCopy.data?.[0] || null;
     } else if (String(profileWithEmailCopy.error.code || '') === '42703') {
       const profileWithEmail = await supabase
         .from('profiles')
         .select('email')
-        .eq('username', username)
-        .single();
-      userRecord = profileWithEmail.data;
-      profileError = profileWithEmail.error;
+        .ilike('username', normalizedUsername)
+        .limit(1);
+      userRecord = profileWithEmail.data?.[0] || null;
+      lookupError = profileWithEmail.error;
     } else {
-      profileError = profileWithEmailCopy.error;
+      lookupError = profileWithEmailCopy.error;
     }
+
+    return { userRecord, lookupError };
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { userRecord, lookupError: profileError } = await lookupProfileByUsername(username);
 
     if (profileError || !userRecord) {
       showModal("error", "ACCESS DENIED", "Username not found.");
@@ -95,28 +105,7 @@ export default function Login({ darkMode }) {
       return;
     }
 
-    let userRecord = null;
-    let lookupError = null;
-
-    const profileWithEmailCopy = await supabase
-      .from('profiles')
-      .select('email_copy')
-      .eq('username', username)
-      .single();
-
-    if (!profileWithEmailCopy.error) {
-      userRecord = profileWithEmailCopy.data;
-    } else if (String(profileWithEmailCopy.error.code || '') === '42703') {
-      const profileWithEmail = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('username', username)
-        .single();
-      userRecord = profileWithEmail.data;
-      lookupError = profileWithEmail.error;
-    } else {
-      lookupError = profileWithEmailCopy.error;
-    }
+    const { userRecord, lookupError } = await lookupProfileByUsername(username);
 
     if (lookupError || !userRecord) {
       showModal("error", "RECOVERY FAILED", "Username not found.");
@@ -149,6 +138,9 @@ export default function Login({ darkMode }) {
   const themeLabel = darkMode ? 'text-zinc-600' : 'text-gray-500';
   const themeSeparator = darkMode ? 'bg-white/5' : 'bg-black/10';
   const themeGoogleBtn = darkMode ? 'bg-black text-white border border-white/5 hover:bg-orange-600' : 'bg-gray-100 text-black border border-gray-200 hover:bg-black hover:text-white';
+  const passwordToggleBtn = darkMode
+    ? 'bg-white/5 text-zinc-300 hover:text-orange-500'
+    : 'bg-white text-gray-600 hover:text-orange-600';
 
   return (
     <div className={`min-h-screen ${themeBgMain} flex items-center justify-center px-4 md:px-6 py-10 relative overflow-hidden transition-colors duration-500 font-sans`}>
@@ -177,7 +169,7 @@ export default function Login({ darkMode }) {
             <div className="space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-widest ml-4`}>Username</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition-all shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold tracking-widest outline-none focus:border-orange-600 transition-all shadow-inner placeholder:text-zinc-800`} 
                 placeholder="username" 
                 value={username}
                 onChange={e => setUsername(e.target.value)} 
@@ -196,14 +188,23 @@ export default function Login({ darkMode }) {
                   Forgot Password?
                 </button>
               </div>
-              <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition-all shadow-inner placeholder:text-zinc-800`} 
-                placeholder="********" 
-                type="password" 
-                value={password}
-                onChange={e => setPassword(e.target.value)} 
-                required 
-              />
+              <div className="relative">
+                <input 
+                  className={`w-full ${themeInput} border p-3.5 md:p-4 pr-16 md:pr-20 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold tracking-widest outline-none focus:border-orange-600 transition-all shadow-inner placeholder:text-zinc-800`} 
+                  placeholder="********" 
+                  type={showPassword ? "text" : "password"} 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)} 
+                  required 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[8px] md:text-[9px] font-black uppercase tracking-widest transition-colors ${passwordToggleBtn}`}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             <button 

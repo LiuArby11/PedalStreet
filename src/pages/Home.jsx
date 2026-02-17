@@ -15,8 +15,6 @@ export default function Home({ isAdmin, session, darkMode }) {
     session?.user?.email?.split('@')[0] ||
     'User';
 
-  const userInitial = userName.charAt(0).toUpperCase();  
-
   const themeBgMain = darkMode ? 'bg-[#0a0b0d]' : 'bg-[#f4f4f4]';
   const themeCard = darkMode ? 'bg-[#111216] border-white/5 shadow-2xl' : 'bg-white border-gray-200 shadow-xl';
   const themeTextMain = darkMode ? 'text-white' : 'text-gray-900';
@@ -192,8 +190,8 @@ export default function Home({ isAdmin, session, darkMode }) {
               return (
                 <div key={product.id} className={`group relative ${isOutOfStock ? 'opacity-70' : ''}`}>
                   <div className={`${themeCard} rounded-[1.5rem] md:rounded-[3rem] border overflow-hidden transition-all duration-500 ${isOutOfStock ? 'border-red-900/20' : 'group-hover:border-orange-600/50 group-hover:-translate-y-1'}`}>
-                    <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-black">
-                      <img src={product.image_url} alt={product.name} className={`w-full h-full object-cover transition-transform duration-700 ${isOutOfStock ? 'grayscale opacity-30' : 'group-hover:scale-110'}`} />
+                    <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-white">
+                      <img src={product.image_url} alt={product.name} className={`w-full h-full object-contain object-center ${isOutOfStock ? 'grayscale opacity-30' : ''}`} />
                       
                       {isOutOfStock && (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -210,13 +208,13 @@ export default function Home({ isAdmin, session, darkMode }) {
 
                     <div className="p-4 md:p-8">
                       <Link to={`/product/${product.id}`}>
-                        <h3 className={`text-sm md:text-xl font-black italic uppercase tracking-tighter mb-1 md:mb-2 transition truncate ${isOutOfStock ? 'text-gray-600' : `${themeTextMain} group-hover:text-orange-600`}`}>
+                        <h3 className={`text-xs md:text-base font-black italic uppercase tracking-tight mb-1 transition truncate ${isOutOfStock ? 'text-gray-600' : `${themeTextMain} group-hover:text-orange-600`}`}>
                           {product.name}
                         </h3>
                       </Link>
 
-                      <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-4 md:mb-8">
-                        <p className={`text-lg md:text-3xl font-black italic tracking-tighter ${isOutOfStock ? 'text-gray-700' : `${darkMode ? 'text-white/90' : 'text-gray-900'}`}`}>
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-3 md:mb-4">
+                        <p className={`text-base md:text-2xl font-black italic tracking-tight ${isOutOfStock ? 'text-gray-700' : `${darkMode ? 'text-white/90' : 'text-gray-900'}`}`}>
                           ₱{product.price.toLocaleString()}
                         </p>
                         {isAdmin && (
@@ -225,6 +223,10 @@ export default function Home({ isAdmin, session, darkMode }) {
                           </span>
                         )}
                       </div>
+
+                      <p className={`text-[10px] md:text-xs leading-relaxed ${themeTextSub} mb-4 md:mb-6 min-h-[32px] md:min-h-[38px] overflow-hidden`}>
+                        {product.description || 'No description available.'}
+                      </p>
 
                       <Link to={`/product/${product.id}`} className={`w-full py-3 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-[0.1em] md:tracking-[0.2em] text-[8px] md:text-[10px] transition-all transform active:scale-95 flex items-center justify-center gap-2 ${isOutOfStock ? 'bg-gray-900 text-gray-700 pointer-events-none' : `${darkMode ? 'bg-white text-black' : 'bg-black text-white'} hover:bg-orange-600 hover:text-white`}`}>
                         {isOutOfStock ? (

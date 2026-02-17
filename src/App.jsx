@@ -65,7 +65,7 @@ export default function App() {
     if (savedStash) {
       try {
         return JSON.parse(savedStash);
-      } catch (e) {
+      } catch {
         return [];
       }
     }
@@ -78,15 +78,33 @@ export default function App() {
 
   const checkUserRole = async (user) => {
     if (!user || !user.id) return;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('is_admin, first_name, last_name, username, phone')
-      .eq('id', user.id)
-      .maybeSingle();
+    const profileSelectAttempts = [
+      'is_admin, first_name, last_name, username, phone, address',
+      'is_admin, first_name, last_name, username, phone',
+      'is_admin, first_name, last_name, username',
+    ];
 
-    if (data) {
-      setIsAdmin(data.is_admin);
-      setUserProfile(data); 
+    let profileData = null;
+    for (const selectClause of profileSelectAttempts) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(selectClause)
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        profileData = data;
+        break;
+      }
+    }
+
+    if (profileData) {
+      setIsAdmin(!!profileData.is_admin);
+      setUserProfile({
+        ...profileData,
+        phone: profileData.phone || '',
+        address: profileData.address || '',
+      });
     }
   };
 

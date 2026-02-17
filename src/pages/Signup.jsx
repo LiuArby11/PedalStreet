@@ -7,17 +7,21 @@ export default function Signup({ darkMode }) {
     email: '', password: '', confirmPassword: '',
     firstName: '', lastName: '', username: '', phone: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState({
-    open: false, type: "info", title: "", message: ""
+    open: false, type: "info", title: "", message: "", redirectTo: null
   });
 
-  const showModal = (type, title, message) => {
-    setModal({ open: true, type, title, message });
+  const showModal = (type, title, message, redirectTo = null) => {
+    setModal({ open: true, type, title, message, redirectTo });
   };
 
   const closeModal = () => {
-    setModal({ ...modal, open: false });
+    const redirectTo = modal.redirectTo;
+    setModal({ ...modal, open: false, redirectTo: null });
+    if (redirectTo) navigate(redirectTo);
   };
 
   const navigate = useNavigate();
@@ -36,16 +40,18 @@ export default function Signup({ darkMode }) {
       return showModal("error", "PASSWORD MISMATCH", "Passwords do not match.");
 
     setLoading(true);
+    const normalizedEmail = String(formData.email || '').trim().toLowerCase();
+    const normalizedUsername = String(formData.username || '').trim().toLowerCase();
     
     const { error: authError } = await supabase.auth.signUp({
-      email: formData.email,
+      email: normalizedEmail,
       password: formData.password,
       options: {
         data: {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          username: formData.username,
-          phone: formData.phone
+          firstName: String(formData.firstName || '').trim(),
+          lastName: String(formData.lastName || '').trim(),
+          username: normalizedUsername,
+          phone: String(formData.phone || '').trim()
         }
       }
     });
@@ -55,9 +61,8 @@ export default function Signup({ darkMode }) {
       setLoading(false);
     } 
     else {
-      showModal("success", "ACCOUNT CREATED", "Please check your email to verify your account.");
+      showModal("success", "ACCOUNT CREATED", "Please check your email, verify your account, then login.", "/login");
       setLoading(false);
-      setTimeout(() => navigate('/login'), 2000);
     }
   };
 
@@ -70,6 +75,9 @@ export default function Signup({ darkMode }) {
   const themeLabel = isDark ? 'text-zinc-600' : 'text-gray-500';
   const themeGoogleBtn = isDark ? 'bg-white text-black hover:bg-orange-600 hover:text-white' : 'bg-gray-200 text-black hover:bg-black hover:text-white';
   const themeSeparator = isDark ? 'bg-white/5' : 'bg-black/10';
+  const passwordToggleBtn = isDark
+    ? 'bg-white/5 text-zinc-300 hover:text-orange-500'
+    : 'bg-white text-gray-600 hover:text-orange-600';
 
   return (
     <div className={`min-h-screen ${themeBgMain} flex items-center justify-center px-4 md:px-6 py-10 md:py-12 relative overflow-hidden transition-colors duration-500 font-sans`}>
@@ -98,7 +106,7 @@ export default function Signup({ darkMode }) {
             <div className="col-span-1 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>First Name</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
                 placeholder="first name" 
                 onChange={e => setFormData({...formData, firstName: e.target.value})} 
                 required 
@@ -108,7 +116,7 @@ export default function Signup({ darkMode }) {
             <div className="col-span-1 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>Last Name</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
                 placeholder="last name" 
                 onChange={e => setFormData({...formData, lastName: e.target.value})} 
                 required 
@@ -118,7 +126,7 @@ export default function Signup({ darkMode }) {
             <div className="col-span-2 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>Username</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
                 placeholder="username" 
                 onChange={e => setFormData({...formData, username: e.target.value})} 
                 required 
@@ -128,7 +136,7 @@ export default function Signup({ darkMode }) {
             <div className="col-span-2 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}> Email Address</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
                 placeholder="EMAIL@GMAIL.COM" 
                 type="email" 
                 onChange={e => setFormData({...formData, email: e.target.value})} 
@@ -139,7 +147,7 @@ export default function Signup({ darkMode }) {
             <div className="col-span-2 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>Contact number</label>
               <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
                 placeholder="09XXXXXXXXX" 
                 type="tel" 
                 onChange={e => setFormData({...formData, phone: e.target.value})} 
@@ -149,24 +157,42 @@ export default function Signup({ darkMode }) {
 
             <div className="col-span-2 sm:col-span-1 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>Password</label>
-              <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
-                placeholder="********" 
-                type="password" 
-                onChange={e => setFormData({...formData, password: e.target.value})} 
-                required 
-              />
+              <div className="relative">
+                <input 
+                  className={`w-full ${themeInput} border p-3.5 md:p-4 pr-16 md:pr-20 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                  placeholder="********" 
+                  type={showPassword ? "text" : "password"} 
+                  onChange={e => setFormData({...formData, password: e.target.value})} 
+                  required 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[8px] md:text-[9px] font-black uppercase tracking-widest transition-colors ${passwordToggleBtn}`}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             <div className="col-span-2 sm:col-span-1 space-y-1.5">
               <label className={`text-[8px] font-black ${themeLabel} uppercase tracking-[0.2em] ml-3 md:ml-4`}>Confirm</label>
-              <input 
-                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
-                placeholder="********" 
-                type="password" 
-                onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
-                required 
-              />
+              <div className="relative">
+                <input 
+                  className={`w-full ${themeInput} border p-3.5 md:p-4 pr-16 md:pr-20 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold tracking-widest outline-none focus:border-orange-600 transition shadow-inner placeholder:text-zinc-800`} 
+                  placeholder="********" 
+                  type={showConfirmPassword ? "text" : "password"} 
+                  onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
+                  required 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[8px] md:text-[9px] font-black uppercase tracking-widest transition-colors ${passwordToggleBtn}`}
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
             
             <button 

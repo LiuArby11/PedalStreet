@@ -1,8 +1,15 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function OrderSuccess({ darkMode }) {
   const navigate = useNavigate();
-  const orderID = "PS-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const [orderID] = useState(() => {
+    const safeToken = (crypto?.randomUUID?.() || `${Date.now()}_TRACKING`)
+      .replace(/-/g, '')
+      .slice(0, 9)
+      .toUpperCase();
+    return `PS-${safeToken}`;
+  });
 
   const isDark = darkMode === true;
   const themeBgMain = isDark ? 'bg-black' : 'bg-[#f8f9fa]';
