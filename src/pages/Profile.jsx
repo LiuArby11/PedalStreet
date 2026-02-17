@@ -10,6 +10,7 @@ export default function Profile({ userProfile, session, darkMode }) {
     username: '',
     phone: '',
   });
+  const accountEmail = session?.user?.email || '';
 
   const [modal, setModal] = useState({
     open: false,
@@ -173,6 +174,16 @@ export default function Profile({ userProfile, session, darkMode }) {
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
                 className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold outline-none focus:border-orange-600 transition-all`}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[8px] font-black text-orange-600 uppercase tracking-widest ml-2">Email</label>
+              <input
+                type="email"
+                value={accountEmail}
+                readOnly
+                className={`w-full ${themeInput} border p-3.5 md:p-4 rounded-xl md:rounded-2xl text-[11px] md:text-xs font-bold opacity-80 cursor-not-allowed`}
               />
             </div>
 
