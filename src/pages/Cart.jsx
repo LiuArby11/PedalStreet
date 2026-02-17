@@ -198,16 +198,22 @@ export default function Cart({ cart, setCart, darkMode }) {
                         <div className="mb-4 text-center sm:text-left">
                           <span className="text-[6px] md:text-[7px] font-black text-orange-600 uppercase tracking-[0.4em] mb-1 block italic opacity-60">ID: {item.id.toString().slice(0, 8)}</span>
                           <h3 className={`font-black text-2xl md:text-4xl italic uppercase tracking-tighter ${themeTextMain} leading-tight mb-3`}>{item.name}</h3>
-                          <div className="flex justify-center sm:justify-start gap-2">
-                            <div className={`px-2 py-0.5 ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} border rounded-md`}>
-                              <span className="text-[6px] md:text-[7px] font-black text-gray-500 uppercase tracking-widest mr-2">SIZE</span>
-                              <span className={`text-[8px] md:text-[9px] font-black ${themeTextMain} uppercase italic`}>{item.selectedSize}</span>
+                          {(item.selectedSize || item.selectedColor) && (
+                            <div className="flex justify-center sm:justify-start gap-2">
+                              {item.selectedSize && (
+                                <div className={`px-2 py-0.5 ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} border rounded-md`}>
+                                  <span className="text-[6px] md:text-[7px] font-black text-gray-500 uppercase tracking-widest mr-2">SIZE</span>
+                                  <span className={`text-[8px] md:text-[9px] font-black ${themeTextMain} uppercase italic`}>{item.selectedSize}</span>
+                                </div>
+                              )}
+                              {item.selectedColor && (
+                                <div className={`px-2 py-0.5 ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} border rounded-md`}>
+                                  <span className="text-[6px] md:text-[7px] font-black text-gray-500 uppercase tracking-widest mr-2">COLOR</span>
+                                  <span className={`text-[8px] md:text-[9px] font-black ${themeTextMain} uppercase italic`}>{item.selectedColor}</span>
+                                </div>
+                              )}
                             </div>
-                            <div className={`px-2 py-0.5 ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} border rounded-md`}>
-                              <span className="text-[6px] md:text-[7px] font-black text-gray-500 uppercase tracking-widest mr-2">COLOR</span>
-                              <span className={`text-[8px] md:text-[9px] font-black ${themeTextMain} uppercase italic`}>{item.selectedColor}</span>
-                            </div>
-                          </div>
+                          )}
                         </div>
 
                         <div className={`flex flex-col xs:flex-row justify-between items-center xs:items-end pt-5 border-t ${isDark ? 'border-white/5' : 'border-black/5'} gap-4`}>

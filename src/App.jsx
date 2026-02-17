@@ -13,11 +13,18 @@ import ProductDetails from './pages/ProductDetails';
 import OrderSuccess from './pages/OrderSuccess';
 import UpdatePassword from './pages/UpdatePassword'; 
 import Profile from './pages/Profile';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Terms from './pages/Terms';
+import ReturnsPolicy from './pages/ReturnsPolicy';
+import Modal from './components/Modal';
+import Toast from './components/Toast';
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userProfile, setUserProfile] = useState(null); 
+  const [modal, setModal] = useState({ open: false, type: 'info', title: '', message: '' });
+  const [toast, setToast] = useState({ open: false, type: 'info', title: '', message: '', duration: 3200 });
   
   const [darkMode, setDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('pedal_street_theme');
@@ -59,7 +66,7 @@ export default function App() {
     if (!user || !user.id) return;
     const { data, error } = await supabase
       .from('profiles')
-      .select('is_admin, first_name, username, phone')
+      .select('is_admin, first_name, last_name, username, phone')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -92,7 +99,13 @@ export default function App() {
 
   const addToCart = (product) => {
     if (isAdmin) {
-      alert("ADMIN NOTICE: Overlords cannot acquire gear.");
+      setToast({
+        open: true,
+        type: "error",
+        title: "ADMIN NOTICE",
+        message: "Overlords cannot acquire gear.",
+        duration: 3200
+      });
       return;
     }
     setCart((prev) => {
@@ -106,7 +119,13 @@ export default function App() {
         const newCart = [...prev];
         const newQty = newCart[existingIndex].quantity + (product.quantity || 1);
         if (newQty > product.stock) {
-          alert(` STOCK LIMIT: Only ${product.stock} units available.`);
+          setToast({
+            open: true,
+            type: "error",
+            title: "STOCK LIMIT",
+            message: `Only ${product.stock} units available.`,
+            duration: 3200
+          });
           return prev;
         }
         newCart[existingIndex].quantity = newQty;
@@ -219,17 +238,66 @@ export default function App() {
             <Route path="/signup" element={!session ? <Signup darkMode={darkMode} /> : <Navigate to="/" />} />
             
             <Route path="/cart" element={session ? <Cart cart={cart} setCart={setCart} darkMode={darkMode} /> : <Navigate to="/login" />} />
-            <Route path="/checkout" element={session ? <Checkout cart={cart} setCart={setCart} session={session} darkMode={darkMode} /> : <Navigate to="/login" />} />
+            <Route path="/checkout" element={session && !isAdmin ? <Checkout cart={cart} setCart={setCart} session={session} darkMode={darkMode} /> : <Navigate to={session ? "/admin" : "/login"} />} />
             <Route path="/orders" element={session ? <Orders darkMode={darkMode} /> : <Navigate to="/login" />} />
             <Route path="/order-success" element={session ? <OrderSuccess darkMode={darkMode} /> : <Navigate to="/login" />} />
-            <Route path="/product/:id" element={<ProductDetails addToCart={addToCart} darkMode={darkMode} />} />
-            <Route path="/admin" element={isAdmin ? <Admin darkMode={darkMode} /> : <Navigate to="/" />} />
+            <Route path="/product/:id" element={<ProductDetails addToCart={addToCart} darkMode={darkMode} session={session} isAdmin={isAdmin} />} />
+            <Route path="/admin" element={isAdmin ? <Admin darkMode={darkMode} session={session} userProfile={userProfile} /> : <Navigate to="/" />} />
             <Route path="/update-password" element={<UpdatePassword darkMode={darkMode} />} />
             <Route path="/profile" element={session ? <Profile userProfile={userProfile} session={session} darkMode={darkMode} /> : <Navigate to="/login" />} />
+            <Route path="/privacy" element={<PrivacyPolicy darkMode={darkMode} />} />
+            <Route path="/terms" element={<Terms darkMode={darkMode} />} />
+            <Route path="/returns" element={<ReturnsPolicy darkMode={darkMode} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
+
+        <footer className={`border-t ${darkMode ? 'border-white/5 bg-[#07080a]' : 'border-black/10 bg-[#f1f2f5]'} mt-16`}>
+          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-12 lg:py-16 grid grid-cols-1 md:grid-cols-3 gap-10 lg:gap-16">
+            <div>
+              <h3 className="text-2xl font-black italic tracking-tighter uppercase">
+                PEDAL<span className="text-orange-600">STREET.</span>
+              </h3>
+              <p className={`mt-4 text-xs font-bold uppercase tracking-[0.2em] ${darkMode ? 'text-zinc-500' : 'text-gray-600'} leading-relaxed max-w-sm`}>
+                Tactical cycling platform built for reliable checkout, order tracking, and admin operations.
+              </p>
+            </div>
+
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-[0.4em] ${darkMode ? 'text-zinc-400' : 'text-gray-700'} mb-4`}>Quick Links</p>
+              <div className="flex flex-col gap-3">
+                <Link to="/" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Home</Link>
+                {session && <Link to="/orders" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Orders</Link>}
+                {session && !isAdmin && <Link to="/cart" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Cart</Link>}
+                {session && <Link to="/profile" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Profile</Link>}
+                {isAdmin && <Link to="/admin" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Admin Panel</Link>}
+              </div>
+            </div>
+
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-[0.4em] ${darkMode ? 'text-zinc-400' : 'text-gray-700'} mb-4`}>Contact</p>
+              <div className={`space-y-2 text-[11px] font-bold uppercase tracking-[0.2em] ${darkMode ? 'text-zinc-500' : 'text-gray-600'}`}>
+                <p>Email: support@pedalstreet.com</p>
+                <p>Phone: +63 912 345 6789</p>
+                <p>Hours: Mon-Sat 9AM-7PM</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`border-t ${darkMode ? 'border-white/5' : 'border-black/10'}`}>
+            <div className={`max-w-7xl mx-auto px-4 lg:px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-[9px] font-black uppercase tracking-[0.3em] ${darkMode ? 'text-zinc-600' : 'text-gray-500'}`}>
+              <p>© 2026 PedalStreet. All rights reserved.</p>
+              <div className="flex items-center gap-5">
+                <Link to="/privacy" className="hover:text-orange-600 transition-colors">Privacy</Link>
+                <Link to="/terms" className="hover:text-orange-600 transition-colors">Terms</Link>
+                <Link to="/returns" className="hover:text-orange-600 transition-colors">Returns</Link>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
+      <Modal modal={modal} setModal={setModal} />
+      <Toast toast={toast} setToast={setToast} />
     </Router>
   );
 }

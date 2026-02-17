@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Modal from "../components/Modal";
+import ActionProgressBar from "../components/ActionProgressBar";
 
 export default function Checkout({ cart, setCart, session, darkMode }) {
   const navigate = useNavigate();
@@ -40,6 +41,11 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
   const themeInput = isDark ? 'bg-black border-white/10 text-white' : 'bg-gray-50 border-gray-300 text-black';
   const themeTextMain = isDark ? 'text-white' : 'text-gray-900';
   const themeTextSub = isDark ? 'text-gray-500' : 'text-gray-600';
+  const checkoutSignals = [
+    { label: 'Stock Reserved', tone: 'text-green-500 border-green-500/30 bg-green-500/10' },
+    { label: 'Encrypted Checkout', tone: 'text-blue-500 border-blue-500/30 bg-blue-500/10' },
+    { label: 'Order Tracking Enabled', tone: 'text-orange-500 border-orange-500/30 bg-orange-500/10' },
+  ];
 
   const subtotal = activeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discountAmount = (subtotal * discount) / 100;
@@ -76,6 +82,113 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
     }
   };
 
+  const fetchProductForCheckout = async (productId) => {
+    const withArchive = await supabase
+      .from('products')
+      .select('id, stock, is_archived, name')
+      .eq('id', productId)
+      .single();
+
+    if (!withArchive.error) {
+      return {
+        data: withArchive.data,
+        error: null,
+      };
+    }
+
+    if (withArchive.error.code === '42703') {
+      const fallback = await supabase
+        .from('products')
+        .select('id, stock, name')
+        .eq('id', productId)
+        .single();
+
+      if (fallback.error) {
+        return { data: null, error: fallback.error };
+      }
+
+      return {
+        data: { ...fallback.data, is_archived: false },
+        error: null,
+      };
+    }
+
+    return { data: null, error: withArchive.error };
+  };
+
+  const reserveStockViaRpc = async (productId, quantity, size, color) => {
+    const { data, error } = await supabase.rpc('reserve_product_stock', {
+      p_product_id: Number(productId),
+      p_quantity: Number(quantity),
+      p_size: size || null,
+      p_color: color || null,
+    });
+
+    if (error) return { ok: false, error };
+    if (!data?.ok) return { ok: false, error: new Error(data?.error || 'Stock reservation failed.') };
+    return { ok: true };
+  };
+
+  const releaseStockViaRpc = async (productId, quantity, size, color) => {
+    const { data, error } = await supabase.rpc('release_product_stock', {
+      p_product_id: Number(productId),
+      p_quantity: Number(quantity),
+      p_size: size || null,
+      p_color: color || null,
+    });
+
+    if (error) return { ok: false, error };
+    if (!data?.ok) return { ok: false, error: new Error(data?.error || 'Stock rollback failed.') };
+    return { ok: true };
+  };
+
+  const reserveStockWithRetry = async (productId, quantity, label, size, color) => {
+    const rpcReserve = await reserveStockViaRpc(productId, quantity, size, color);
+    if (rpcReserve.ok) return { mode: 'rpc' };
+    if (!['42883', 'PGRST202'].includes(String(rpcReserve.error?.code || ''))) {
+      throw rpcReserve.error;
+    }
+
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const { data: currentProduct, error: readError } = await fetchProductForCheckout(productId);
+      if (readError) throw readError;
+
+      if (currentProduct?.is_archived) {
+        throw new Error(`Product unavailable: ${currentProduct.name || label}`);
+      }
+
+      const currentStock = Number(currentProduct.stock);
+      const neededQty = Number(quantity);
+      if (currentStock < neededQty) {
+        throw new Error(`Insufficient stock for ${currentProduct.name || label}. Available: ${currentStock}`);
+      }
+
+      const nextStock = currentStock - neededQty;
+      const { error: reserveError } = await supabase
+        .from('products')
+        .update({ stock: nextStock })
+        .eq('id', productId)
+        .eq('stock', currentProduct.stock);
+
+      if (reserveError) throw reserveError;
+
+      const { data: verifyProduct, error: verifyError } = await supabase
+        .from('products')
+        .select('stock')
+        .eq('id', productId)
+        .single();
+
+      if (verifyError) throw verifyError;
+      if (Number(verifyProduct.stock) === nextStock) {
+        return { mode: 'client' };
+      }
+    }
+
+    throw new Error(`Stock reservation blocked for ${label}. Possible DB policy issue. Please run checkout_stock_rpc.sql in Supabase SQL Editor.`);
+  };
+
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (activeItems.length === 0) return;
@@ -86,14 +199,50 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
     }
 
     setLoading(true);
+    const deductedStocks = [];
 
     try {
+      const demandByProduct = activeItems.reduce((acc, item) => {
+        const itemSize = item.selectedSize || '';
+        const itemColor = item.selectedColor || '';
+        const key = `${item.id}__${itemSize}__${itemColor}`;
+        if (!acc[key]) {
+          acc[key] = {
+            quantity: 0,
+            name: item.name || 'Product',
+            productId: item.id,
+            size: itemSize,
+            color: itemColor,
+          };
+        }
+        acc[key].quantity += Number(item.quantity || 0);
+        return acc;
+      }, {});
+
+      for (const [, demand] of Object.entries(demandByProduct)) {
+        const reservation = await reserveStockWithRetry(
+          demand.productId,
+          demand.quantity,
+          demand.name,
+          demand.size,
+          demand.color
+        );
+
+        deductedStocks.push({
+          productId: demand.productId,
+          quantity: Number(demand.quantity),
+          size: demand.size,
+          color: demand.color,
+          mode: reservation?.mode || 'client',
+        });
+      }
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert([{
           user_id: session.user.id,
           total_amount: total,
-          status: 'PENDING',
+          status: 'PROCESSING',
           address: formData.address,
           phone: formData.phone,
           payment_method: formData.payment_method,
@@ -122,7 +271,38 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
 
       navigate('/order-success');
     } catch (err) {
-      showModal("error", "CRITICAL ERROR", err.message);
+      for (const rollbackItem of deductedStocks) {
+        try {
+          if (rollbackItem.mode === 'rpc') {
+            const releaseRpc = await releaseStockViaRpc(
+              rollbackItem.productId,
+              rollbackItem.quantity,
+              rollbackItem.size,
+              rollbackItem.color
+            );
+            if (!releaseRpc.ok) {
+              console.error('Checkout rollback rpc error:', releaseRpc.error?.message || releaseRpc.error);
+            }
+          } else {
+            const { data: rollbackProduct } = await supabase
+              .from('products')
+              .select('stock')
+              .eq('id', rollbackItem.productId)
+              .single();
+
+            if (rollbackProduct) {
+              await supabase
+                .from('products')
+                .update({ stock: Number(rollbackProduct.stock) + Number(rollbackItem.quantity) })
+                .eq('id', rollbackItem.productId);
+            }
+          }
+        } catch (rollbackErr) {
+          console.error('Checkout rollback error:', rollbackErr.message);
+        }
+      }
+      const errorMessage = err?.message || 'Checkout failed. Please try again.';
+      showModal("error", "CRITICAL ERROR", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -153,6 +333,7 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
 
   return (
     <div className={`max-w-7xl mx-auto py-8 md:py-20 px-4 md:px-6 ${themeBgMain} min-h-screen ${themeTextMain} transition-colors duration-500`}>
+      <ActionProgressBar active={loading} />
       <ProgressBar />
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 md:mb-16 gap-6">
@@ -170,6 +351,14 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mb-8 md:mb-10 flex flex-wrap gap-2 md:gap-3">
+        {checkoutSignals.map((signal) => (
+          <span key={signal.label} className={`px-4 py-2 rounded-full border text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${signal.tone}`}>
+            {signal.label}
+          </span>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
@@ -326,6 +515,14 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
                 <div className="text-right hidden sm:block">
                    <p className="text-[7px] md:text-[8px] font-black text-white/40 uppercase tracking-widest">Auth Transaction</p>
                 </div>
+              </div>
+            </div>
+
+            <div className={`mt-5 p-5 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-white/10' : 'bg-white border-black/10'}`}>
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-orange-600 mb-3">Checkout Confidence</p>
+              <div className="space-y-2">
+                <p className={`text-[11px] font-bold ${themeTextSub}`}>Inventory is locked when you finalize to prevent overselling.</p>
+                <p className={`text-[11px] font-bold ${themeTextSub}`}>If cancellation happens before delivery, stock is returned automatically.</p>
               </div>
             </div>
           </div>

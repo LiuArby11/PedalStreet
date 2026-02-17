@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 export default function Home({ isAdmin, session, darkMode }) { 
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [categories, setCategories] = useState(['ALL']);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,7 @@ export default function Home({ isAdmin, session, darkMode }) {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -42,16 +44,37 @@ export default function Home({ isAdmin, session, darkMode }) {
     setFilteredProducts(result);
   }, [searchQuery, activeCategory, products]);
 
+  useEffect(() => {
+    if (!categories.includes(activeCategory)) {
+      setActiveCategory('ALL');
+    }
+  }, [categories, activeCategory]);
+
   async function fetchProducts() {
     setLoading(true);
     const { data } = await supabase.from('products').select('*');
-    setProducts(data || []);
-    setFilteredProducts(data || []);
+    const activeProducts = (data || []).filter((p) => !p.is_archived);
+    setProducts(activeProducts);
+    setFilteredProducts(activeProducts);
     setLoading(false);
   }
 
-  const categories = ['ALL', 'ROAD', 'MTB', 'PARTS', 'GEAR'];
-
+  async function fetchCategories() {
+    try {
+      const { data, error } = await supabase
+        .from('product_categories')
+        .select('code')
+        .eq('is_active', true)
+        .order('code', { ascending: true });
+      if (error) throw error;
+      const dynamicCategories = (data || []).map((item) => item.code).filter(Boolean);
+      if (dynamicCategories.length > 0) {
+        setCategories(['ALL', ...dynamicCategories]);
+      }
+    } catch (err) {
+      console.error("Category Fetch Error:", err.message);
+    }
+  }
   return (
     <div className={`${themeBgMain} min-h-screen transition-colors duration-500`}>
       
@@ -77,10 +100,15 @@ export default function Home({ isAdmin, session, darkMode }) {
               Your premium tactical cycling gear is ready.
             </p>
 
-            <div>
+            <div className="flex flex-wrap gap-3">
               <a href="#inventory" className={`inline-block italic ${darkMode ? 'bg-white text-black' : 'bg-black text-white'} px-6 py-3 md:px-5 md:py-3 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-orange-600 hover:text-white transition-all transform active:scale-95 shadow-2xl`}>
                 Shop Now
               </a>
+              {!isAdmin && (
+                <Link to="/orders" className={`inline-block italic ${darkMode ? 'bg-white/[0.05] border-white/10 text-white' : 'bg-white border-black/10 text-black'} border px-6 py-3 md:px-5 md:py-3 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:border-orange-600 hover:text-orange-600 transition-all`}>
+                  Track Orders
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -163,7 +191,7 @@ export default function Home({ isAdmin, session, darkMode }) {
               const isOutOfStock = product.stock <= 0;
               return (
                 <div key={product.id} className={`group relative ${isOutOfStock ? 'opacity-70' : ''}`}>
-                  <div className={`${themeCard} rounded-[1.5rem] md:rounded-[3rem] border overflow-hidden transition-all duration-500 ${isOutOfStock ? 'border-red-900/20' : 'group-hover:border-orange-600/50'}`}>
+                  <div className={`${themeCard} rounded-[1.5rem] md:rounded-[3rem] border overflow-hidden transition-all duration-500 ${isOutOfStock ? 'border-red-900/20' : 'group-hover:border-orange-600/50 group-hover:-translate-y-1'}`}>
                     <Link to={`/product/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-black">
                       <img src={product.image_url} alt={product.name} className={`w-full h-full object-cover transition-transform duration-700 ${isOutOfStock ? 'grayscale opacity-30' : 'group-hover:scale-110'}`} />
                       

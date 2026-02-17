@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
-export default function ProductDetails({ addToCart, darkMode }) {
+export default function ProductDetails({ addToCart, darkMode, session, isAdmin }) {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [variantRows, setVariantRows] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [selectedSize, setSelectedSize] = useState("");
@@ -15,15 +16,19 @@ export default function ProductDetails({ addToCart, darkMode }) {
     open: false,
     type: "info",
     title: "",
-    message: ""
+    message: "",
+    redirectTo: null // Dagdag para sa auto-redirect pag-close ng modal
   });
 
-  const showModal = (type, title, message) => {
-    setModal({ open: true, type, title, message });
+  const showModal = (type, title, message, redirectTo = null) => {
+    setModal({ open: true, type, title, message, redirectTo });
   };
 
   const closeModal = () => {
-    setModal({ ...modal, open: false });
+    if (modal.redirectTo) {
+      navigate(modal.redirectTo);
+    }
+    setModal({ ...modal, open: false, redirectTo: null });
   };
 
   const navigate = useNavigate();
@@ -35,6 +40,36 @@ export default function ProductDetails({ addToCart, darkMode }) {
   const themeTextSub = isDark ? 'text-gray-500' : 'text-gray-600';
   const themeModal = isDark ? 'bg-[#0d0e12] border-white/10' : 'bg-white border-gray-200';
   const themeBtnSecondary = isDark ? 'border-white/10 text-white hover:bg-white hover:text-black' : 'border-black/10 text-black hover:bg-black hover:text-white';
+  const trustSignals = [
+    { label: 'Secure Checkout', tone: 'text-blue-500 bg-blue-500/10 border-blue-500/20' },
+    { label: 'Fast Dispatch', tone: 'text-green-500 bg-green-500/10 border-green-500/20' },
+    { label: 'Verified Product', tone: 'text-orange-500 bg-orange-500/10 border-orange-500/20' },
+  ];
+  const hasVariantStock = variantRows.length > 0;
+
+  const sizeOptions = hasVariantStock
+    ? [...new Set(variantRows.map((v) => v.size).filter(Boolean))]
+    : (product?.options?.sizes || []);
+
+  const colorOptions = hasVariantStock
+    ? [...new Set(
+        variantRows
+          .filter((v) => !selectedSize || (v.size || '') === selectedSize)
+          .map((v) => v.color)
+          .filter(Boolean)
+      )]
+    : (product?.options?.colors || []);
+
+  const selectedVariantStock = hasVariantStock
+    ? Number(
+        variantRows.find(
+          (v) =>
+            (v.size || '') === (selectedSize || '') &&
+            (v.color || '') === (selectedColor || '')
+        )?.stock || 0
+      )
+    : Number(product?.stock || 0);
+  const isLowVariantStock = selectedVariantStock > 0 && selectedVariantStock <= 2;
 
   useEffect(() => {
     const fetchProductAndRelated = async () => {
@@ -47,10 +82,37 @@ export default function ProductDetails({ addToCart, darkMode }) {
         .eq('id', id)
         .single();
 
-      if (mainProduct) {
+      if (mainProduct && !mainProduct.is_archived) {
         setProduct(mainProduct);
-        if (mainProduct.options?.sizes) setSelectedSize(mainProduct.options.sizes[0]);
-        if (mainProduct.options?.colors) setSelectedColor(mainProduct.options.colors[0]);
+
+        let variantData = [];
+        try {
+          const { data: variants, error: variantError } = await supabase
+            .from('product_variant_stocks')
+            .select('size, color, stock')
+            .eq('product_id', mainProduct.id)
+            .order('size', { ascending: true })
+            .order('color', { ascending: true });
+
+          if (!variantError) {
+            variantData = variants || [];
+          }
+        } catch (_err) {
+          variantData = [];
+        }
+
+        setVariantRows(variantData);
+
+        if (variantData.length > 0) {
+          const firstVariant = variantData.find((v) => Number(v.stock) > 0) || variantData[0];
+          setSelectedSize(firstVariant?.size || '');
+          setSelectedColor(firstVariant?.color || '');
+        } else {
+          if (mainProduct.options?.sizes) setSelectedSize(mainProduct.options.sizes[0]);
+          else setSelectedSize('');
+          if (mainProduct.options?.colors) setSelectedColor(mainProduct.options.colors[0]);
+          else setSelectedColor('');
+        }
 
         const { data: related } = await supabase
           .from('products')
@@ -59,7 +121,11 @@ export default function ProductDetails({ addToCart, darkMode }) {
           .neq('id', id)
           .limit(4);
         
-        setRelatedProducts(related || []);
+        setRelatedProducts((related || []).filter((item) => !item.is_archived));
+      } else {
+        setProduct(null);
+        setRelatedProducts([]);
+        setVariantRows([]);
       }
       setLoading(false);
     };
@@ -68,20 +134,42 @@ export default function ProductDetails({ addToCart, darkMode }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]); 
 
+  useEffect(() => {
+    if (hasVariantStock && colorOptions.length > 0 && !colorOptions.includes(selectedColor)) {
+      setSelectedColor(colorOptions[0]);
+    }
+  }, [hasVariantStock, colorOptions, selectedColor]);
+
+  useEffect(() => {
+    if (quantity > selectedVariantStock) {
+      setQuantity(Math.max(1, selectedVariantStock));
+    }
+  }, [quantity, selectedVariantStock]);
+
   const increaseQty = () => {
-    if (quantity < product.stock) setQuantity(prev => prev + 1);
+    if (quantity < selectedVariantStock) setQuantity(prev => prev + 1);
   };
   const decreaseQty = () => {
     if (quantity > 1) setQuantity(prev => prev - 1);
   };
 
   const handleAddToCart = () => {
-    if (product.stock <= 0) {
+    if (!session) {
+      showModal("info", "AUTH REQUIRED", "Please login to synchronize your cart with our servers.", "/login");
+      return;
+    }
+    if (isAdmin) {
+      showModal("error", "ACCESS DENIED", "Admin accounts cannot add products to cart.");
+      return;
+    }
+
+    if (selectedVariantStock <= 0) {
       showModal("error", "LOGISTICS ERROR", "Out of stock.");
       return;
     }
     const productWithVariants = { 
       ...product, 
+      stock: selectedVariantStock,
       selectedSize, 
       selectedColor, 
       quantity: Number(quantity) 
@@ -91,12 +179,23 @@ export default function ProductDetails({ addToCart, darkMode }) {
   };
 
   const handleBuyNow = () => {
-    if (product.stock <= 0) {
+    // 1. Auth Check with Modal
+    if (!session) {
+      showModal("info", "AUTH REQUIRED", "Secure authentication is required before proceeding to checkout.", "/login");
+      return;
+    }
+    if (isAdmin) {
+      showModal("error", "ACCESS DENIED", "Admin accounts cannot place customer orders.");
+      return;
+    }
+
+    if (selectedVariantStock <= 0) {
       showModal("error", "LOGISTICS ERROR", "Out of stock.");
       return;
     }
     const directBuyItem = { 
       ...product, 
+      stock: selectedVariantStock,
       selectedSize, 
       selectedColor, 
       quantity 
@@ -116,11 +215,11 @@ export default function ProductDetails({ addToCart, darkMode }) {
 
   if (!product) return <div className={`text-center mt-20 font-black uppercase ${themeTextMain}`}>Product Not Found.</div>;
 
-  const isOutOfStock = product.stock <= 0;
+  const isOutOfStock = selectedVariantStock <= 0;
 
   return (
     <div className={`${themeBgMain} min-h-screen transition-colors duration-500`}>
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12 pb-28 md:pb-16">
         
         <button 
           onClick={() => navigate('/')} 
@@ -147,7 +246,7 @@ export default function ProductDetails({ addToCart, darkMode }) {
                 <div className={`backdrop-blur-xl border px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl flex items-center gap-3 ${isOutOfStock ? 'bg-red-600/20 border-red-600/50' : 'bg-black/40 border-white/10'}`}>
                   <div className={`w-2 h-2 rounded-full ${isOutOfStock ? 'bg-red-600' : 'bg-green-500 animate-pulse'}`}></div>
                   <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-white italic">
-                    {isOutOfStock ? 'Out of stock' : `Stock: ${product.stock}`}
+                    {isOutOfStock ? 'Out of stock' : `Stock: ${selectedVariantStock}`}
                   </span>
                 </div>
               </div>
@@ -171,6 +270,20 @@ export default function ProductDetails({ addToCart, darkMode }) {
               </span>
             </div>
 
+            <div className="flex flex-wrap gap-2 md:gap-3 mb-8">
+              {trustSignals.map((signal) => (
+                <span key={signal.label} className={`px-4 py-2 rounded-full border text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${signal.tone}`}>
+                  {signal.label}
+                </span>
+              ))}
+            </div>
+
+            {isLowVariantStock && (
+              <div className="mb-8 px-4 py-3 rounded-xl border bg-red-600/10 border-red-600/20 text-red-500 text-[10px] font-black uppercase tracking-[0.2em]">
+                Only {selectedVariantStock} left for this variant. Secure it now.
+              </div>
+            )}
+
             <div className="space-y-6 md:space-y-8 mb-10 md:mb-12">
               {!isOutOfStock && (
                 <div>
@@ -187,11 +300,11 @@ export default function ProductDetails({ addToCart, darkMode }) {
                 </div>
               )}
 
-              {product.options?.sizes && (
+              {sizeOptions.length > 0 && (
                 <div>
                   <p className={`text-[9px] md:text-[10px] font-black ${themeTextSub} uppercase tracking-[0.3em] mb-3 md:mb-4 italic`}>Frame Size</p>
                   <div className="flex flex-wrap gap-2 md:gap-3">
-                    {product.options.sizes.map((size) => (
+                    {sizeOptions.map((size) => (
                       <button key={size} onClick={() => setSelectedSize(size)} className={`px-4 py-2 md:px-6 md:py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${selectedSize === size ? "bg-orange-600 border-orange-600 text-white" : `${isDark ? 'bg-white/[0.02] border-white/10 text-gray-400' : 'bg-white border-gray-200 text-gray-600'}`}`}>
                         {size}
                       </button>
@@ -200,11 +313,11 @@ export default function ProductDetails({ addToCart, darkMode }) {
                 </div>
               )}
 
-              {product.options?.colors && (
+              {colorOptions.length > 0 && (
                 <div>
                   <p className={`text-[9px] md:text-[10px] font-black ${themeTextSub} uppercase tracking-[0.3em] mb-3 md:mb-4 italic`}>Skin Variant</p>
                   <div className="flex flex-wrap gap-2 md:gap-3">
-                    {product.options.colors.map((color) => (
+                    {colorOptions.map((color) => (
                       <button key={color} onClick={() => setSelectedColor(color)} className={`px-4 py-2 md:px-6 md:py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${selectedColor === color ? `${isDark ? 'bg-white text-black border-white' : 'bg-black text-white border-black'}` : `${isDark ? 'bg-white/[0.02] border-white/10 text-gray-400' : 'bg-white border-gray-200 text-gray-600'}`}`}>
                         {color}
                       </button>
@@ -236,6 +349,15 @@ export default function ProductDetails({ addToCart, darkMode }) {
                 Add to cart
               </button>
             </div>
+
+            <div className={`mt-8 md:mt-10 p-5 md:p-7 rounded-[1.5rem] md:rounded-[2rem] border ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-black/10 bg-gray-50'}`}>
+              <p className="text-[9px] font-black uppercase tracking-[0.35em] text-orange-600 mb-4">Rider Assurance</p>
+              <div className="space-y-3">
+                <p className={`text-[11px] font-bold ${themeTextSub}`}>Stock is reserved immediately on checkout to protect your order slot.</p>
+                <p className={`text-[11px] font-bold ${themeTextSub}`}>If order is cancelled before delivery, stock is automatically returned.</p>
+                <p className={`text-[11px] font-bold ${themeTextSub}`}>Full order status visibility: Processing, Shipped, Delivered.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -260,6 +382,21 @@ export default function ProductDetails({ addToCart, darkMode }) {
           </div>
         )}
       </div>
+
+      {!isOutOfStock && (
+        <div className={`lg:hidden fixed bottom-3 left-3 right-3 z-40 ${isDark ? 'bg-[#0d0e12]/95 border-white/10' : 'bg-white/95 border-black/10'} border backdrop-blur-xl rounded-2xl px-4 py-3 flex items-center justify-between shadow-2xl`}>
+          <div>
+            <p className={`text-[8px] font-black uppercase tracking-[0.3em] ${themeTextSub}`}>Quick Checkout</p>
+            <p className="text-lg font-black italic tracking-tight text-orange-600">₱{product.price.toLocaleString()}</p>
+          </div>
+          <button
+            onClick={handleBuyNow}
+            className="bg-orange-600 text-white px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.25em] hover:bg-black transition-all"
+          >
+            Buy Now
+          </button>
+        </div>
+      )}
 
       {modal.open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 px-6">

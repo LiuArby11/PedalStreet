@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 
 export default function Profile({ userProfile, session, darkMode }) {
   const [loading, setLoading] = useState(false);
+  const [profileRecord, setProfileRecord] = useState(userProfile || null);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -23,6 +24,7 @@ export default function Profile({ userProfile, session, darkMode }) {
 
   useEffect(() => {
     if (userProfile) {
+      setProfileRecord(userProfile);
       setFormData({
         first_name: userProfile.first_name || '',
         last_name: userProfile.last_name || '',
@@ -32,9 +34,49 @@ export default function Profile({ userProfile, session, darkMode }) {
     }
   }, [userProfile]);
 
+  useEffect(() => {
+    const hydrateProfile = async () => {
+      if (!session?.user?.id) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, username, phone, is_admin')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setProfileRecord(data);
+        setFormData({
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          username: data.username || '',
+          phone: data.phone || '',
+        });
+        return;
+      }
+
+      const meta = session.user.user_metadata || {};
+      setFormData((prev) => ({
+        first_name: prev.first_name || meta.firstName || meta.first_name || '',
+        last_name: prev.last_name || meta.lastName || meta.last_name || '',
+        username: prev.username || meta.username || '',
+        phone: prev.phone || meta.phone || '',
+      }));
+    };
+
+    hydrateProfile();
+  }, [session]);
+
   const handleUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
+    const beforeData = {
+      first_name: profileRecord?.first_name || '',
+      last_name: profileRecord?.last_name || '',
+      username: profileRecord?.username || '',
+      phone: profileRecord?.phone || '',
+      is_admin: !!profileRecord?.is_admin,
+    };
 
     const { error } = await supabase
       .from('profiles')
@@ -49,6 +91,26 @@ export default function Profile({ userProfile, session, darkMode }) {
     if (error) {
       showModal("error", "SYNC FAILED", error.message);
     } else {
+      if (profileRecord?.is_admin) {
+        const actorName = [formData.first_name, formData.last_name].filter(Boolean).join(' ').trim() || formData.username || session?.user?.email || 'Admin';
+        await supabase.from('admin_audit_logs').insert([{
+          action: 'PROFILE_UPDATE',
+          entity_type: 'PROFILE',
+          entity_id: session.user.id,
+          actor_id: session.user.id,
+          actor_email: session?.user?.email || null,
+          actor_name: actorName,
+          before_data: beforeData,
+          after_data: {
+            ...formData,
+            is_admin: true,
+          },
+          metadata: {
+            source: 'profile_page',
+          },
+        }]);
+      }
+      setProfileRecord((prev) => ({ ...(prev || {}), ...formData }));
       showModal("success", "PROFILE UPDATED", "Your identity has been successfully updated.");
       
       setTimeout(() => {
@@ -72,7 +134,7 @@ export default function Profile({ userProfile, session, darkMode }) {
           
           <div className="mb-8 md:mb-10">
             <h1 className={`text-3xl md:text-4xl font-black italic uppercase tracking-tighter ${themeTextMain}`}>
-              USER <span className="text-orange-600">PROFILE.</span>
+              {profileRecord?.is_admin ? 'ADMIN' : 'USER'} <span className="text-orange-600">PROFILE.</span>
             </h1>
             <p className={`text-[8px] md:text-[9px] font-black ${themeTextSub} uppercase tracking-[0.4em] mt-2`}>
               EDIT INFORMATION
