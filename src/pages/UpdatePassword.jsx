@@ -27,18 +27,35 @@ export default function UpdatePassword({ darkMode }) {
   const themeTextSub = isDark ? 'text-gray-500' : 'text-gray-600';
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "PASSWORD RECOVERY" || session) {
+    let redirectTimer = null;
+
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) {
         setIsReady(true);
-      } else {
-        setTimeout(() => {
-          if (!isReady) navigate('/login');
-        }, 2000);
+        return;
+      }
+
+      redirectTimer = setTimeout(() => {
+        setIsReady(false);
+        navigate('/login');
+      }, 3000);
+    };
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || !!session) {
+        if (redirectTimer) clearTimeout(redirectTimer);
+        setIsReady(true);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [navigate, isReady]);
+    return () => {
+      if (redirectTimer) clearTimeout(redirectTimer);
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
