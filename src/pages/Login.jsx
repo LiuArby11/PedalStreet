@@ -95,19 +95,42 @@ export default function Login({ darkMode }) {
       return;
     }
 
-    const { data: userRecord } = await supabase
+    let userRecord = null;
+    let lookupError = null;
+
+    const profileWithEmailCopy = await supabase
       .from('profiles')
       .select('email_copy')
       .eq('username', username)
       .single();
 
-    if (!userRecord) {
+    if (!profileWithEmailCopy.error) {
+      userRecord = profileWithEmailCopy.data;
+    } else if (String(profileWithEmailCopy.error.code || '') === '42703') {
+      const profileWithEmail = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('username', username)
+        .single();
+      userRecord = profileWithEmail.data;
+      lookupError = profileWithEmail.error;
+    } else {
+      lookupError = profileWithEmailCopy.error;
+    }
+
+    if (lookupError || !userRecord) {
       showModal("error", "RECOVERY FAILED", "Username not found.");
       return;
     }
 
+    const recoveryEmail = userRecord.email_copy || userRecord.email;
+    if (!recoveryEmail) {
+      showModal("error", "RECOVERY FAILED", "No recovery email linked to this account.");
+      return;
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(
-      userRecord.email_copy,
+      recoveryEmail,
       { redirectTo: `${window.location.origin}/update-password` }
     );
 
