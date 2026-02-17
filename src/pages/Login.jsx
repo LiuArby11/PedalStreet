@@ -26,20 +26,48 @@ export default function Login({ darkMode }) {
     e.preventDefault();
     setLoading(true);
 
-    const { data: userRecord, error: profileError } = await supabase
+    let userRecord = null;
+    let profileError = null;
+
+    const profileWithEmailCopy = await supabase
       .from('profiles')
-      .select('email') 
+      .select('email_copy')
       .eq('username', username)
       .single();
 
-    if (!userRecord) {
+    if (!profileWithEmailCopy.error) {
+      userRecord = profileWithEmailCopy.data;
+    } else if (String(profileWithEmailCopy.error.code || '') === '42703') {
+      const profileWithEmail = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('username', username)
+        .single();
+      userRecord = profileWithEmail.data;
+      profileError = profileWithEmail.error;
+    } else {
+      profileError = profileWithEmailCopy.error;
+    }
+
+    if (profileError || !userRecord) {
       showModal("error", "ACCESS DENIED", "Username not found.");
       setLoading(false);
       return;
     }
 
+    const loginEmail = userRecord.email_copy || userRecord.email;
+    if (!loginEmail) {
+      showModal(
+        "error",
+        "VERIFICATION FAILED",
+        "Account email link is missing. Please contact admin to sync profiles."
+      );
+      setLoading(false);
+      return;
+    }
+
     const { error: authError } = await supabase.auth.signInWithPassword({ 
-      email: userRecord.email, 
+      email: loginEmail, 
       password 
     });
 
