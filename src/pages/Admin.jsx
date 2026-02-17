@@ -35,6 +35,7 @@
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [usersLoading, setUsersLoading] = useState(false);
     const [actionBusy, setActionBusy] = useState(false);
+    const [orderActionId, setOrderActionId] = useState(null);
     const [restoringLogId, setRestoringLogId] = useState(null);
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [searchTerm, setSearchTerm] = useState('');
@@ -43,6 +44,11 @@
     const [productSort, setProductSort] = useState('NEWEST');
     const [productPage, setProductPage] = useState(1);
     const [productPageSize, setProductPageSize] = useState(12);
+    const [orderPage, setOrderPage] = useState(1);
+    const [categoryPage, setCategoryPage] = useState(1);
+    const [userPage, setUserPage] = useState(1);
+    const [voucherPage, setVoucherPage] = useState(1);
+    const [auditPage, setAuditPage] = useState(1);
     const [userSearch, setUserSearch] = useState('');
     const [variantCopySource, setVariantCopySource] = useState('');
     const [currentAdmin, setCurrentAdmin] = useState({ id: null, email: '', name: '', username: '' });
@@ -248,8 +254,10 @@
       try {
         // Progressive fallbacks to support different profiles schemas.
         const attempts = [
+          'id, first_name, last_name, username, email_copy, phone, is_admin',
+          'id, first_name, last_name, username, email_copy, is_admin',
           'id, first_name, last_name, username, email, phone, is_admin',
-          'id, first_name, last_name, username, phone, is_admin',
+          'id, first_name, last_name, username, email, is_admin',
           'id, first_name, last_name, username, is_admin',
           'id, username, is_admin',
         ];
@@ -273,7 +281,7 @@
           first_name: row.first_name || '',
           last_name: row.last_name || '',
           username: row.username || '',
-          email: row.email || '',
+          email: row.email_copy || row.email || '',
           phone: row.phone || '',
           is_admin: !!row.is_admin,
           created_at: row.created_at || null,
@@ -566,6 +574,7 @@
 
     const updateOrderStatus = async (id, status) => {
       setActionBusy(true);
+      setOrderActionId(id);
       try {
         const orderToUpdate = orders.find(o => o.id === id);
         if (!orderToUpdate) throw new Error('Order not found.');
@@ -607,6 +616,7 @@
           fetchProducts();
         }
       } finally {
+        setOrderActionId(null);
         setActionBusy(false);
       }
     };
@@ -854,16 +864,21 @@
         "DELETE ORDER",
         "Scrap this order record? This cannot be undone.",
         async () => {
+          setOrderActionId(id);
           const orderSnapshot = orders.find((o) => o.id === id) || null;
-          const { error } = await supabase.from('orders').delete().eq('id', id);
-          if (!error) {
-            await logAdminAction({
-              action: 'DELETE',
-              entityType: 'ORDER',
-              entityId: id,
-              beforeData: orderSnapshot
-            });
-            fetchOrders();
+          try {
+            const { error } = await supabase.from('orders').delete().eq('id', id);
+            if (!error) {
+              await logAdminAction({
+                action: 'DELETE',
+                entityType: 'ORDER',
+                entityId: id,
+                beforeData: orderSnapshot
+              });
+              fetchOrders();
+            }
+          } finally {
+            setOrderActionId(null);
           }
         }
       );
@@ -1120,6 +1135,52 @@
       date: new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       amount: o.total_amount
     })).reverse();
+    const filteredOrders = orders
+      .filter((o) => filterStatus === 'ALL' || o.status === filterStatus)
+      .filter((o) =>
+        o.id.toLowerCase().includes(orderSearch.toLowerCase()) ||
+        `${o.profiles?.first_name} ${o.profiles?.last_name}`.toLowerCase().includes(orderSearch.toLowerCase())
+      );
+    const dispatchCounts = {
+      pending: orders.filter((o) => o.status === 'PENDING').length,
+      processing: orders.filter((o) => o.status === 'PROCESSING').length,
+      shipped: orders.filter((o) => o.status === 'SHIPPED').length,
+      cancelled: orders.filter((o) => o.status === 'CANCELLED').length,
+    };
+    const orderPageSize = 6;
+    const orderTotalPages = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
+    const safeOrderPage = Math.min(orderPage, orderTotalPages);
+    const orderStartIndex = (safeOrderPage - 1) * orderPageSize;
+    const orderEndIndex = Math.min(filteredOrders.length, orderStartIndex + orderPageSize);
+    const paginatedOrders = filteredOrders.slice(orderStartIndex, orderEndIndex);
+
+    const categoryPageSize = 10;
+    const categoryTotalPages = Math.max(1, Math.ceil(categories.length / categoryPageSize));
+    const safeCategoryPage = Math.min(categoryPage, categoryTotalPages);
+    const categoryStartIndex = (safeCategoryPage - 1) * categoryPageSize;
+    const categoryEndIndex = Math.min(categories.length, categoryStartIndex + categoryPageSize);
+    const paginatedCategories = categories.slice(categoryStartIndex, categoryEndIndex);
+
+    const userPageSize = 10;
+    const userTotalPages = Math.max(1, Math.ceil(userRows.length / userPageSize));
+    const safeUserPage = Math.min(userPage, userTotalPages);
+    const userStartIndex = (safeUserPage - 1) * userPageSize;
+    const userEndIndex = Math.min(userRows.length, userStartIndex + userPageSize);
+    const paginatedUsers = userRows.slice(userStartIndex, userEndIndex);
+
+    const voucherPageSize = 10;
+    const voucherTotalPages = Math.max(1, Math.ceil(vouchers.length / voucherPageSize));
+    const safeVoucherPage = Math.min(voucherPage, voucherTotalPages);
+    const voucherStartIndex = (safeVoucherPage - 1) * voucherPageSize;
+    const voucherEndIndex = Math.min(vouchers.length, voucherStartIndex + voucherPageSize);
+    const paginatedVouchers = vouchers.slice(voucherStartIndex, voucherEndIndex);
+
+    const auditPageSize = 12;
+    const auditTotalPages = Math.max(1, Math.ceil(auditLogs.length / auditPageSize));
+    const safeAuditPage = Math.min(auditPage, auditTotalPages);
+    const auditStartIndex = (safeAuditPage - 1) * auditPageSize;
+    const auditEndIndex = Math.min(auditLogs.length, auditStartIndex + auditPageSize);
+    const paginatedAuditLogs = auditLogs.slice(auditStartIndex, auditEndIndex);
 
     const inventoryFiltered = products
       .filter((p) => {
@@ -1160,6 +1221,14 @@
     useEffect(() => {
       setProductPage(1);
     }, [searchTerm, productViewFilter, productSort, productPageSize]);
+
+    useEffect(() => {
+      setOrderPage(1);
+    }, [orderSearch, filterStatus]);
+
+    useEffect(() => {
+      setUserPage(1);
+    }, [userSearch]);
 
     useEffect(() => {
       if (productPage > productTotalPages) setProductPage(productTotalPages);
@@ -1596,6 +1665,23 @@
                 ))}
               </div>
 
+              <div className={`sticky top-4 z-20 ${themeCard} rounded-3xl p-4 lg:p-6 border`}>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Visible', value: filteredOrders.length, tone: 'text-orange-600' },
+                    { label: 'Pending', value: dispatchCounts.pending, tone: 'text-orange-500' },
+                    { label: 'Processing', value: dispatchCounts.processing, tone: 'text-blue-500' },
+                    { label: 'Shipped', value: dispatchCounts.shipped, tone: 'text-cyan-500' },
+                    { label: 'Cancelled', value: dispatchCounts.cancelled, tone: 'text-red-500' },
+                  ].map((metric) => (
+                    <div key={metric.label} className={`${darkMode ? 'bg-black/40 border-white/5' : 'bg-gray-50 border-gray-200'} border rounded-2xl p-4`}>
+                      <p className={`text-[8px] font-black uppercase tracking-[0.3em] ${themeTextSub}`}>{metric.label}</p>
+                      <p className={`text-2xl lg:text-3xl font-black italic mt-2 ${metric.tone}`}>{metric.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-10">
                 {loading && Array.from({ length: 3 }).map((_, idx) => (
                   <div key={`order-skeleton-${idx}`} className={`${themeCard} rounded-[3rem] lg:rounded-[4rem] p-10 animate-pulse`}>
@@ -1603,10 +1689,19 @@
                     <div className={`h-20 rounded-2xl ${darkMode ? 'bg-white/5' : 'bg-gray-200'}`} />
                   </div>
                 ))}
-                {!loading && orders
-                .filter(o => filterStatus === 'ALL' || o.status === filterStatus)
-                .filter(o => o.id.toLowerCase().includes(orderSearch.toLowerCase()) || `${o.profiles?.first_name} ${o.profiles?.last_name}`.toLowerCase().includes(orderSearch.toLowerCase()))
-                .map((order) => (
+                {!loading && filteredOrders.length === 0 && (
+                  <div className={`${themeCard} rounded-[3rem] lg:rounded-[4rem] p-10 border text-center`}>
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-orange-600 mb-3">No Dispatch Results</p>
+                    <p className={`text-xs font-bold ${themeTextSub}`}>
+                      {orders.length === 0
+                        ? 'No orders yet. Once users checkout, dispatch cards will appear here.'
+                        : 'Try a different status filter or search keyword.'}
+                    </p>
+                  </div>
+                )}
+                {!loading && paginatedOrders.map((order) => {
+                  const isOrderBusy = actionBusy && orderActionId === order.id;
+                  return (
                   <div key={order.id} className={`${themeCard} rounded-[3rem] lg:rounded-[4rem] overflow-hidden relative transition-colors`}>
                     <div className={`h-2 w-full ${
                       order.status === 'DELIVERED'
@@ -1632,27 +1727,30 @@
                           }`}>
                               {order.status}
                           </span>
+                          {isOrderBusy && (
+                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-600 mt-2 animate-pulse">Updating...</p>
+                          )}
                       </div>
                       
                       <div className="flex flex-wrap gap-3">
                         {order.status !== 'CANCELLED' && (
                           <>
-                            <button onClick={() => confirmPrintWaybill(order)} className={`${actionBtnBase} bg-blue-600 text-white hover:bg-blue-700`}>Print Manifest</button>
+                            <button disabled={isOrderBusy} onClick={() => confirmPrintWaybill(order)} className={`${actionBtnBase} bg-blue-600 text-white hover:bg-blue-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Print Manifest</button>
                             {order.status === 'PENDING' && (
-                              <button onClick={() => confirmOrderStatusChange(order, 'PROCESSING')} className={`${actionBtnBase} ${darkMode ? 'bg-white text-black' : 'bg-black text-white'} hover:bg-blue-600 hover:text-white`}>Start Processing</button>
+                              <button disabled={isOrderBusy} onClick={() => confirmOrderStatusChange(order, 'PROCESSING')} className={`${actionBtnBase} ${darkMode ? 'bg-white text-black' : 'bg-black text-white'} hover:bg-blue-600 hover:text-white ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Start Processing</button>
                             )}
                             {order.status === 'PROCESSING' && (
-                              <button onClick={() => confirmOrderStatusChange(order, 'SHIPPED')} className={`${actionBtnBase} ${darkMode ? 'bg-white text-black' : 'bg-black text-white'} hover:bg-orange-600 hover:text-white`}>Initialize Shipment</button>
+                              <button disabled={isOrderBusy} onClick={() => confirmOrderStatusChange(order, 'SHIPPED')} className={`${actionBtnBase} ${darkMode ? 'bg-white text-black' : 'bg-black text-white'} hover:bg-orange-600 hover:text-white ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Initialize Shipment</button>
                             )}
                             {order.status === 'SHIPPED' && (
-                              <button onClick={() => confirmOrderStatusChange(order, 'DELIVERED')} className={`${actionBtnBase} bg-green-600 text-white hover:bg-green-700`}>Mark Finalized</button>
+                              <button disabled={isOrderBusy} onClick={() => confirmOrderStatusChange(order, 'DELIVERED')} className={`${actionBtnBase} bg-green-600 text-white hover:bg-green-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Mark Finalized</button>
                             )}
                             {(order.status === 'PENDING' || order.status === 'PROCESSING' || order.status === 'SHIPPED') && (
-                              <button onClick={() => confirmOrderStatusChange(order, 'CANCELLED')} className={`${actionBtnBase} bg-red-600 text-white hover:bg-red-700`}>Abort Dispatch</button>
+                              <button disabled={isOrderBusy} onClick={() => confirmOrderStatusChange(order, 'CANCELLED')} className={`${actionBtnBase} bg-red-600 text-white hover:bg-red-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Abort Dispatch</button>
                             )}
                           </>
                         )}
-                        <button onClick={() => deleteOrder(order.id)} className="bg-red-600/10 text-red-600 w-12 h-12 flex items-center justify-center rounded-2xl hover:bg-red-600 hover:text-white transition-all" aria-label="Delete order">
+                        <button disabled={isOrderBusy} onClick={() => deleteOrder(order.id)} className={`bg-red-600/10 text-red-600 w-12 h-12 flex items-center justify-center rounded-2xl hover:bg-red-600 hover:text-white transition-all ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`} aria-label="Delete order">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0l1 12a1 1 0 001 .917h6a1 1 0 001-.917L17 7" />
                           </svg>
@@ -1689,7 +1787,37 @@
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
+                {!loading && filteredOrders.length > 0 && (
+                  <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-2`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${themeTextSub}`}>
+                      Showing {filteredOrders.length === 0 ? 0 : orderStartIndex + 1}-{orderEndIndex} of {filteredOrders.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setOrderPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safeOrderPage === 1}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeOrderPage === 1 ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Prev
+                      </button>
+                      <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${themeTextMain} ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                        Page {safeOrderPage} / {orderTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setOrderPage((prev) => Math.min(orderTotalPages, prev + 1))}
+                        disabled={safeOrderPage === orderTotalPages}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeOrderPage === orderTotalPages ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1743,7 +1871,7 @@
                           <td colSpan={4} className={`p-10 text-center ${themeTextSub} text-xs font-black uppercase tracking-widest`}>No categories yet.</td>
                         </tr>
                       )}
-                      {!categoriesLoading && categories.map((category) => (
+                      {!categoriesLoading && paginatedCategories.map((category) => (
                         <tr key={category.id} className={`${darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-gray-50'} transition-colors`}>
                           <td className="p-6 lg:p-10 font-black text-orange-600 italic text-lg">{category.code}</td>
                           <td className={`p-6 lg:p-10 font-black text-sm ${themeTextMain}`}>{category.label}</td>
@@ -1764,6 +1892,36 @@
                     </tbody>
                   </table>
                 </div>
+                {!categoriesLoading && categories.length > 0 && (
+                  <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 lg:px-10 py-5 border-t ${darkMode ? 'border-white/5' : 'border-gray-200'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${themeTextSub}`}>
+                      Showing {categories.length === 0 ? 0 : categoryStartIndex + 1}-{categoryEndIndex} of {categories.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCategoryPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safeCategoryPage === 1}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeCategoryPage === 1 ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Prev
+                      </button>
+                      <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${themeTextMain} ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                        Page {safeCategoryPage} / {categoryTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setCategoryPage((prev) => Math.min(categoryTotalPages, prev + 1))}
+                        disabled={safeCategoryPage === categoryTotalPages}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeCategoryPage === categoryTotalPages ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1803,7 +1961,7 @@
                           <td colSpan={6} className={`p-10 text-center ${themeTextSub} text-xs font-black uppercase tracking-widest`}>No users found.</td>
                         </tr>
                       )}
-                      {!usersLoading && userRows.map((u) => (
+                      {!usersLoading && paginatedUsers.map((u) => (
                         <tr key={u.id} className={`${darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-gray-50'} transition-colors`}>
                           <td className="p-6 lg:p-10">
                             <p className={`font-black italic uppercase text-sm ${themeTextMain}`}>{`${u.first_name || ''} ${u.last_name || ''}`.trim() || 'N/A'}</p>
@@ -1823,6 +1981,36 @@
                     </tbody>
                   </table>
                 </div>
+                {!usersLoading && userRows.length > 0 && (
+                  <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 lg:px-10 py-5 border-t ${darkMode ? 'border-white/5' : 'border-gray-200'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${themeTextSub}`}>
+                      Showing {userRows.length === 0 ? 0 : userStartIndex + 1}-{userEndIndex} of {userRows.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setUserPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safeUserPage === 1}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeUserPage === 1 ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Prev
+                      </button>
+                      <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${themeTextMain} ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                        Page {safeUserPage} / {userTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setUserPage((prev) => Math.min(userTotalPages, prev + 1))}
+                        disabled={safeUserPage === userTotalPages}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeUserPage === userTotalPages ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1854,7 +2042,7 @@
                             <td className="p-6 lg:p-10"><div className={`h-6 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-200'}`} /></td>
                           </tr>
                         ))}
-                        {vouchers.map(v => (
+                        {paginatedVouchers.map(v => (
                           <tr key={v.id}>
                             <td className="p-6 lg:p-10 font-black text-blue-500 italic text-2xl">{v.code}</td>
                             <td className={`p-6 lg:p-10 font-black text-xl lg:text-2xl italic ${themeTextMain}`}>{v.discount_percent}% DEDUCTION</td>
@@ -1864,6 +2052,36 @@
                       </tbody>
                     </table>
                   </div>
+                  {!vouchersLoading && vouchers.length > 0 && (
+                    <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 lg:px-10 py-5 border-t ${darkMode ? 'border-white/5' : 'border-gray-200'}`}>
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${themeTextSub}`}>
+                        Showing {vouchers.length === 0 ? 0 : voucherStartIndex + 1}-{voucherEndIndex} of {vouchers.length}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setVoucherPage((prev) => Math.max(1, prev - 1))}
+                          disabled={safeVoucherPage === 1}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            safeVoucherPage === 1 ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                          }`}
+                        >
+                          Prev
+                        </button>
+                        <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${themeTextMain} ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                          Page {safeVoucherPage} / {voucherTotalPages}
+                        </span>
+                        <button
+                          onClick={() => setVoucherPage((prev) => Math.min(voucherTotalPages, prev + 1))}
+                          disabled={safeVoucherPage === voucherTotalPages}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            safeVoucherPage === voucherTotalPages ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>
           )}
@@ -1908,7 +2126,7 @@
                         </tr>
                       )}
 
-                      {!auditLoading && auditLogs.map((log) => {
+                      {!auditLoading && paginatedAuditLogs.map((log) => {
                         const canRestore = ['DELETE', 'ARCHIVE'].includes(log.action) && !log.restored_at && ['PRODUCT', 'ORDER', 'VOUCHER'].includes(log.entity_type);
                         return (
                           <tr key={log.id} className={`${darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-gray-50'} transition-colors`}>
@@ -1954,6 +2172,36 @@
                     </tbody>
                   </table>
                 </div>
+                {!auditLoading && auditLogs.length > 0 && (
+                  <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 lg:px-10 py-5 border-t ${darkMode ? 'border-white/5' : 'border-gray-200'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${themeTextSub}`}>
+                      Showing {auditLogs.length === 0 ? 0 : auditStartIndex + 1}-{auditEndIndex} of {auditLogs.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safeAuditPage === 1}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeAuditPage === 1 ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Prev
+                      </button>
+                      <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${themeTextMain} ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                        Page {safeAuditPage} / {auditTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+                        disabled={safeAuditPage === auditTotalPages}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                          safeAuditPage === auditTotalPages ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
