@@ -108,7 +108,7 @@ export default function Login({ darkMode }) {
 
     const { error } = await supabase.auth.resetPasswordForEmail(
       userRecord.email_copy,
-      { redirectTo: 'http://localhost:5173/update-password' }
+      { redirectTo: `${window.location.origin}/update-password` }
     );
 
     if (error) {
