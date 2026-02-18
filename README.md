@@ -8,6 +8,12 @@ PedalStreet is a Supabase-backed e-commerce app for cycling products with:
 - admin inventory and dispatch controls
 - admin audit trail
 
+## Quick Defense Summary (1 Minute)
+
+Use this as your opening statement:
+
+"PedalStreet is a web-based e-commerce system for cycling products built with React, Tailwind, and Supabase. It supports customer and admin roles, secure authentication, product and variant management, cart/checkout flow, order status updates, and admin audit logs. We implemented soft-delete for products, duplicate product prevention, payment status confirmation on admin side, and structured delivery address support. The project focuses on functionality, access control, and data integrity as required by the semester project scope."
+
 ## Setup
 
 1. Install dependencies:
@@ -44,6 +50,18 @@ Run these in Supabase SQL Editor:
 - Admin can update `payment_status` (`PENDING`, `CONFIRMED`, `PAID`) for operational confirmation.
 - Checkout supports saved contacts and optional structured address entry for smoother delivery details.
 
+## Panelist Checklist Mapping
+
+Recommendations / Heads-Up coverage:
+
+1. Delete behavior (soft delete): Implemented.
+2. Avoid duplicates: Implemented (UI guard + DB unique index for active product names).
+3. Documentation wording: Implemented (no exaggerated claims about payment gateway).
+4. Payment flow: Implemented (admin payment status confirmation).
+5. Backup plan: Implemented in this README.
+6. Authentication & security: Implemented and documented.
+7. Delivery address UX: Implemented (structured fields + saved contacts).
+
 ## Security Model
 
 - Authentication uses Supabase Auth.
@@ -66,3 +84,48 @@ Operational recommendation for Supabase Postgres:
    - switch environment variables to recovered database if needed
 
 This project also keeps admin audit logs to support operational rollback discussions during defense.
+
+## Common Panel Questions (Ready Answers)
+
+### Why Supabase?
+"We used Supabase because it provides PostgreSQL database, authentication, and access control in one platform. It let us implement Admin/Customer flows quickly while keeping data relational, secure, and maintainable."
+
+### Is password stored as plain text?
+"No. Passwords are handled by Supabase Auth and stored as hashed and salted values, not plain text."
+
+### How is authentication and access secured?
+"We use Supabase Auth for login sessions, route-level access checks in frontend, and role-based/RLS policies in database so users only access allowed data."
+
+### Why no payment gateway?
+"The project scope does not require gateway integration. We implemented operational payment status (`PENDING`, `CONFIRMED`, `PAID`) in admin to make the workflow realistic."
+
+### What happens when product is deleted?
+"Product is not hard-deleted. It is archived (`is_archived`), can be restored, and remains recoverable for audit/history safety."
+
+### How do you prevent duplicate products?
+"We block duplicate active product names in admin create/update and enforce uniqueness in DB for active products."
+
+### What is your backup/recovery plan?
+"Daily snapshots, periodic SQL exports, offsite backup storage, and tested recovery flow (restore, validate data, verify critical flows, then switch environment)."
+
+## Live Demo Flow (Safe Sequence)
+
+1. Login as Admin.
+2. Show product list and archive one product (soft delete).
+3. Switch product filter to `ARCHIVED`, then restore it.
+4. Try creating duplicate product name -> show validation block.
+5. Go to Orders -> show logistics status and payment status actions.
+6. Mark payment status (`PENDING` -> `CONFIRMED` -> `PAID`).
+7. Logout Admin, login as Customer.
+8. Show checkout saved contact + structured address fields.
+9. Place order and show customer order page with payment status.
+
+## Notes Before Defense Day
+
+1. Ensure all SQL files above are already executed on the same Supabase project used in demo.
+2. Confirm one admin account and one customer account are ready.
+3. Prepare stable sample data:
+   - active and archived products
+   - at least one order in each major status
+   - one low-stock product
+4. Keep this README open as your quick memory guide during rehearsal.
