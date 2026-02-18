@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 
 import Home from './pages/Home';
@@ -60,21 +60,41 @@ export default function App() {
   );
   const isPasswordRecoveryRoute = currentPathname === '/update-password';
 
-  const [cart, setCart] = useState(() => {
-    const savedStash = localStorage.getItem('pedal_street_cart');
-    if (savedStash) {
+  const [cart, setCart] = useState([]);
+
+  const getCartStorageKey = useCallback((userId) => `pedal_street_cart_${userId}`, []);
+
+  const readUserCart = useCallback((userId) => {
+    if (!userId) return [];
+
+    const userScopedKey = getCartStorageKey(userId);
+    const scopedValue = localStorage.getItem(userScopedKey);
+
+    if (scopedValue) {
       try {
-        return JSON.parse(savedStash);
+        return JSON.parse(scopedValue);
       } catch {
         return [];
       }
     }
-    return [];
-  });
 
-  useEffect(() => {
-    localStorage.setItem('pedal_street_cart', JSON.stringify(cart));
-  }, [cart]);
+    // Backward compatibility for old single-key cart.
+    const legacyValue = localStorage.getItem('pedal_street_cart');
+    if (!legacyValue) return [];
+    try {
+      const parsed = JSON.parse(legacyValue);
+      localStorage.setItem(userScopedKey, JSON.stringify(parsed));
+      localStorage.removeItem('pedal_street_cart');
+      return parsed;
+    } catch {
+      return [];
+    }
+  }, [getCartStorageKey]);
+
+  const persistUserCart = useCallback((userId, cartPayload) => {
+    if (!userId) return;
+    localStorage.setItem(getCartStorageKey(userId), JSON.stringify(cartPayload));
+  }, [getCartStorageKey]);
 
   const checkUserRole = async (user) => {
     if (!user || !user.id) return;
@@ -111,23 +131,31 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) checkUserRole(session.user);
+      if (session) {
+        checkUserRole(session.user);
+        setCart(readUserCart(session.user.id));
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
         checkUserRole(session.user);
+        setCart(readUserCart(session.user.id));
       } else {
         setIsAdmin(false);
         setUserProfile(null);
-        setCart([]); 
-        localStorage.removeItem('pedal_street_cart');
+        setCart([]);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [readUserCart]);
+
+  useEffect(() => {
+    if (!session?.user?.id || isAdmin) return;
+    persistUserCart(session.user.id, cart);
+  }, [cart, isAdmin, persistUserCart, session]);
 
   const addToCart = (product) => {
     if (isAdmin) {
