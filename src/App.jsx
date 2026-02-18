@@ -303,7 +303,7 @@ export default function App() {
               <p className={`text-[10px] font-black uppercase tracking-[0.4em] ${darkMode ? 'text-zinc-400' : 'text-gray-700'} mb-4`}>Quick Links</p>
               <div className="flex flex-col gap-3">
                 <Link to="/" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Home</Link>
-                {session && <Link to="/orders" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Orders</Link>}
+                {session && !isAdmin && <Link to="/orders" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Orders</Link>}
                 {session && !isAdmin && <Link to="/cart" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Cart</Link>}
                 {session && <Link to="/profile" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Profile</Link>}
                 {isAdmin && <Link to="/admin" className={`text-[11px] font-black uppercase tracking-[0.25em] ${darkMode ? 'text-zinc-500 hover:text-orange-500' : 'text-gray-700 hover:text-orange-600'} transition-colors`}>Admin Panel</Link>}
