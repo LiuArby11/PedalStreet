@@ -384,6 +384,15 @@ export default function Orders({ darkMode }) {
                         <div className="space-y-1">
                           <p className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em] italic">Mode of Payment</p>
                           <p className={`text-[10px] md:text-xs font-bold ${themeTextMain} uppercase`}>{order.payment_method}</p>
+                          <p className={`text-[10px] md:text-xs font-black uppercase ${
+                            String(order.payment_status || 'PENDING').toUpperCase() === 'PAID'
+                              ? 'text-green-500'
+                              : String(order.payment_status || 'PENDING').toUpperCase() === 'CONFIRMED'
+                              ? 'text-blue-500'
+                              : 'text-orange-500'
+                          }`}>
+                            Payment: {String(order.payment_status || 'PENDING').toUpperCase()}
+                          </p>
                         </div>
                       </div>
                       

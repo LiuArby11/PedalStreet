@@ -623,6 +623,53 @@
       }
     };
 
+    const resolvePaymentStatus = (order) => {
+      const raw = String(order?.payment_status || '').toUpperCase();
+      if (['PENDING', 'CONFIRMED', 'PAID'].includes(raw)) return raw;
+      return 'PENDING';
+    };
+
+    const updateOrderPaymentStatus = async (id, paymentStatus) => {
+      setActionBusy(true);
+      setOrderActionId(id);
+      try {
+        const orderToUpdate = orders.find((o) => o.id === id);
+        if (!orderToUpdate) throw new Error('Order not found.');
+
+        const currentPaymentStatus = resolvePaymentStatus(orderToUpdate);
+        if (currentPaymentStatus === paymentStatus) return;
+
+        const { error } = await supabase
+          .from('orders')
+          .update({ payment_status: paymentStatus })
+          .eq('id', id);
+
+        if (error) {
+          if (String(error.code || '') === '42703') {
+            showModal("error", "PAYMENT STATUS COLUMN MISSING", "Run sql/orders_payment_and_product_uniqueness.sql in Supabase SQL Editor.");
+            return;
+          }
+          throw error;
+        }
+
+        await logAdminAction({
+          action: 'PAYMENT_STATUS_UPDATE',
+          entityType: 'ORDER',
+          entityId: id,
+          beforeData: orderToUpdate,
+          afterData: { ...orderToUpdate, payment_status: paymentStatus },
+          metadata: { from: currentPaymentStatus, to: paymentStatus }
+        });
+        showModal("success", "PAYMENT STATUS UPDATED", `Payment status changed to ${paymentStatus}.`);
+        fetchOrders();
+      } catch (err) {
+        showModal("error", "PAYMENT UPDATE FAILED", err.message || 'Unable to update payment status.');
+      } finally {
+        setOrderActionId(null);
+        setActionBusy(false);
+      }
+    };
+
     const confirmOrderStatusChange = (order, nextStatus) => {
       const statusConfig = {
         PROCESSING: "START PROCESSING",
@@ -645,6 +692,31 @@
         {
           confirmTone: toneMap[nextStatus] || 'default',
           confirmLabel: nextStatus === 'CANCELLED' ? 'CONFIRM CANCEL' : 'CONFIRM UPDATE',
+          cancelLabel: 'GO BACK',
+        }
+      );
+    };
+
+    const confirmOrderPaymentStatusChange = (order, nextStatus) => {
+      const labelMap = {
+        PENDING: 'MARK AS PENDING',
+        CONFIRMED: 'MARK AS CONFIRMED',
+        PAID: 'MARK AS PAID',
+      };
+      const toneMap = {
+        PENDING: 'default',
+        CONFIRMED: 'info',
+        PAID: 'success',
+      };
+      openConfirm(
+        labelMap[nextStatus] || "UPDATE PAYMENT STATUS",
+        `Order ${order.id.slice(0, 8)} payment will move from ${resolvePaymentStatus(order)} to ${nextStatus}.`,
+        async () => {
+          await updateOrderPaymentStatus(order.id, nextStatus);
+        },
+        {
+          confirmTone: toneMap[nextStatus] || 'default',
+          confirmLabel: 'CONFIRM UPDATE',
           cancelLabel: 'GO BACK',
         }
       );
@@ -1001,11 +1073,31 @@
       if (syncStockError) throw syncStockError;
     };
 
+    const normalizeProductName = (value) => String(value || '').trim().toLowerCase();
+
     const handleSubmit = async (e) => {
       e.preventDefault();
       setActionBusy(true);
       const beforeProduct = editingId ? products.find((p) => p.id === editingId) : null;
       const safeCategory = String(form.category || '').trim().toUpperCase();
+      const normalizedName = normalizeProductName(form.name);
+      const sameNameActiveProduct = products.find((p) => (
+        normalizeProductName(p.name) === normalizedName
+        && !p.is_archived
+        && (!editingId || p.id !== editingId)
+      ));
+
+      if (!normalizedName) {
+        showModal("error", "INVALID PRODUCT NAME", "Product name is required.");
+        setActionBusy(false);
+        return;
+      }
+      if (sameNameActiveProduct) {
+        showModal("error", "DUPLICATE PRODUCT BLOCKED", `An active product named "${form.name}" already exists. Archive or rename the existing product first.`);
+        setActionBusy(false);
+        return;
+      }
+
       const isKnownCategory = categories.some((c) => c.code === safeCategory && c.is_active);
       if (categories.length > 0 && !isKnownCategory) {
         showModal("error", "INVALID CATEGORY", "Select an active category from Category Manager.");
@@ -1014,6 +1106,7 @@
       }
       const payload = {
         ...form,
+        name: String(form.name || '').trim(),
         category: safeCategory,
         price: Number(form.price),
         stock: Number(form.stock)
@@ -1124,7 +1217,8 @@
     };
 
     const totalRevenue = orders.filter(o => o.status === 'DELIVERED').reduce((a, b) => a + Number(b.total_amount), 0);
-    const lowStockItems = products.filter(p => p.stock <= 5);
+    const activeProducts = products.filter((p) => !p.is_archived);
+    const lowStockItems = activeProducts.filter((p) => Number(p.stock) <= 5);
     const activeCategories = categories.filter((c) => c.is_active);
     const categoryCodeSet = new Set(categories.map((c) => c.code));
     const userRows = users.filter((u) => {
@@ -1323,9 +1417,12 @@
                 </div>
                 <div className={`${themeCard} p-8 lg:p-10 rounded-[2.5rem] lg:rounded-[3rem] border transition-all ${lowStockItems.length > 0 ? 'border-red-500/50 animate-pulse' : ''}`}>
                   <p className={`text-[9px] font-black ${themeTextSub} uppercase mb-4 tracking-widest flex items-center gap-2`}>
-                      <span className={`w-2 h-2 rounded-full ${lowStockItems.length > 0 ? 'bg-red-500 animate-ping' : 'bg-red-500'}`}></span> Products
+                      <span className={`w-2 h-2 rounded-full ${lowStockItems.length > 0 ? 'bg-red-500 animate-ping' : 'bg-red-500'}`}></span> Active Products
                   </p>
-                  <h3 className={`text-4xl lg:text-5xl font-black italic tracking-tighter ${lowStockItems.length > 0 ? 'text-red-500' : themeTextMain}`}>{lowStockItems.length}</h3>
+                  <h3 className={`text-4xl lg:text-5xl font-black italic tracking-tighter ${themeTextMain}`}>{activeProducts.length}</h3>
+                  <p className={`mt-3 text-[9px] font-black uppercase tracking-widest ${lowStockItems.length > 0 ? 'text-red-500' : themeTextSub}`}>
+                    Low stock: {lowStockItems.length}
+                  </p>
                 </div>
               </div>
 
@@ -1733,6 +1830,18 @@
                           {isOrderBusy && (
                             <p className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-600 mt-2 animate-pulse">Updating...</p>
                           )}
+                          <div className="mt-3">
+                            <p className={`text-[8px] font-black ${themeTextSub} uppercase tracking-widest mb-1`}>Payment Status</p>
+                            <span className={`text-[10px] font-black px-6 py-2 rounded-full uppercase italic ${
+                              resolvePaymentStatus(order) === 'PAID'
+                                ? 'bg-green-600/10 text-green-500 border border-green-500/20'
+                                : resolvePaymentStatus(order) === 'CONFIRMED'
+                                ? 'bg-blue-600/10 text-blue-500 border border-blue-500/20'
+                                : 'bg-orange-600/10 text-orange-600 border border-orange-600/20'
+                            }`}>
+                              {resolvePaymentStatus(order)}
+                            </span>
+                          </div>
                       </div>
                       
                       <div className="flex flex-wrap gap-3">
@@ -1752,6 +1861,15 @@
                               <button disabled={isOrderBusy} onClick={() => confirmOrderStatusChange(order, 'CANCELLED')} className={`${actionBtnBase} bg-red-600 text-white hover:bg-red-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Abort Dispatch</button>
                             )}
                           </>
+                        )}
+                        {resolvePaymentStatus(order) !== 'PENDING' && (
+                          <button disabled={isOrderBusy} onClick={() => confirmOrderPaymentStatusChange(order, 'PENDING')} className={`${actionBtnBase} ${darkMode ? 'bg-white/5 text-white' : 'bg-gray-200 text-black'} hover:bg-orange-600 hover:text-white ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Mark Pending</button>
+                        )}
+                        {resolvePaymentStatus(order) !== 'CONFIRMED' && (
+                          <button disabled={isOrderBusy} onClick={() => confirmOrderPaymentStatusChange(order, 'CONFIRMED')} className={`${actionBtnBase} bg-blue-600 text-white hover:bg-blue-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Mark Confirmed</button>
+                        )}
+                        {resolvePaymentStatus(order) !== 'PAID' && (
+                          <button disabled={isOrderBusy} onClick={() => confirmOrderPaymentStatusChange(order, 'PAID')} className={`${actionBtnBase} bg-green-600 text-white hover:bg-green-700 ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}>Mark Paid</button>
                         )}
                         <button disabled={isOrderBusy} onClick={() => deleteOrder(order.id)} className={`bg-red-600/10 text-red-600 w-12 h-12 flex items-center justify-center rounded-2xl hover:bg-red-600 hover:text-white transition-all ${isOrderBusy ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`} aria-label="Delete order">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1795,6 +1913,13 @@
                           <p className="text-[8px] font-black text-orange-600 uppercase mb-4 tracking-[0.4em] italic">Settlement</p>
                           <p className={`text-4xl lg:text-6xl font-black italic tracking-tighter ${themeTextMain}`}>₱{Number(order.total_amount).toLocaleString()}</p>
                           <p className={`text-[9px] font-black ${darkMode ? 'text-gray-700' : 'text-gray-400'} uppercase mt-4`}>{order.payment_method}</p>
+                          <p className={`text-[9px] font-black uppercase mt-2 ${
+                            resolvePaymentStatus(order) === 'PAID'
+                              ? 'text-green-500'
+                              : resolvePaymentStatus(order) === 'CONFIRMED'
+                              ? 'text-blue-500'
+                              : 'text-orange-500'
+                          }`}>PAYMENT: {resolvePaymentStatus(order)}</p>
                       </div>
                     </div>
                   </div>

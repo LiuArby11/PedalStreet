@@ -29,10 +29,16 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
   const [contactOptions, setContactOptions] = useState([]);
   const [selectedContactKey, setSelectedContactKey] = useState('');
   const [contactLoading, setContactLoading] = useState(false);
+  const [useStructuredAddress, setUseStructuredAddress] = useState(false);
 
   const [formData, setFormData] = useState({
     address: '',
     phone: '',
+    address_line_1: '',
+    barangay: '',
+    city: '',
+    province: '',
+    postal_code: '',
     delivery_instructions: '',
     payment_method: 'COD',
     payment_details: ''
@@ -54,6 +60,19 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
   const subtotal = activeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discountAmount = (subtotal * discount) / 100;
   const total = subtotal - discountAmount;
+  const composeStructuredAddress = (payload) => {
+    const pieces = [
+      payload.address_line_1,
+      payload.barangay,
+      payload.city,
+      payload.province,
+      payload.postal_code,
+    ]
+      .map((part) => String(part || '').trim())
+      .filter(Boolean);
+    return pieces.join(', ');
+  };
+  const resolvedAddress = useStructuredAddress ? composeStructuredAddress(formData) : formData.address;
 
   useEffect(() => {
     if (activeItems.length === 0) {
@@ -274,7 +293,7 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
     e.preventDefault();
     if (activeItems.length === 0) return;
 
-    if (!String(formData.address || '').trim() || !String(formData.phone || '').trim()) {
+    if (!String(resolvedAddress || '').trim() || !String(formData.phone || '').trim()) {
       showModal("error", "DELIVERY PROFILE REQUIRED", "Please save your delivery address and phone in Profile first.");
       return;
     }
@@ -326,12 +345,13 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
       const orderPayload = {
         user_id: session.user.id,
         total_amount: total,
-        status: 'PROCESSING',
-        address: formData.address,
+        status: 'PENDING',
+        address: resolvedAddress,
         phone: formData.phone,
         delivery_instructions: formData.delivery_instructions,
         payment_method: formData.payment_method,
         payment_details: formData.payment_details,
+        payment_status: 'PENDING',
         promo_applied: appliedCode
       };
 
@@ -344,6 +364,7 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
       if (orderResult.error && String(orderResult.error.code || '') === '42703') {
         const fallbackPayload = { ...orderPayload };
         delete fallbackPayload.delivery_instructions;
+        delete fallbackPayload.payment_status;
         orderResult = await supabase
           .from('orders')
           .insert([fallbackPayload])
@@ -505,11 +526,73 @@ export default function Checkout({ cart, setCart, session, darkMode }) {
                   )}
                 </div>
 
+                <div className={`${isDark ? 'bg-white/[0.02] border-white/10' : 'bg-gray-50 border-black/10'} border rounded-[1.2rem] md:rounded-[1.6rem] p-4 md:p-5 space-y-4`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${themeTextSub}`}>Structured Address Entry</p>
+                    <button
+                      type="button"
+                      onClick={() => setUseStructuredAddress((prev) => !prev)}
+                      className={`px-4 py-2 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] transition-colors ${
+                        useStructuredAddress
+                          ? 'bg-orange-600 text-white hover:bg-orange-700'
+                          : `${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-black/10 text-black hover:bg-black/20'}`
+                      }`}
+                    >
+                      {useStructuredAddress ? 'Enabled' : 'Enable'}
+                    </button>
+                  </div>
+                  {useStructuredAddress && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        className={`w-full ${themeInput} rounded-xl p-4 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                        placeholder="House No / Street"
+                        value={formData.address_line_1}
+                        onChange={(e) => setFormData({ ...formData, address_line_1: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        className={`w-full ${themeInput} rounded-xl p-4 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                        placeholder="Barangay"
+                        value={formData.barangay}
+                        onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        className={`w-full ${themeInput} rounded-xl p-4 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                        placeholder="City / Municipality"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        className={`w-full ${themeInput} rounded-xl p-4 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                        placeholder="Province"
+                        value={formData.province}
+                        onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        className={`w-full ${themeInput} rounded-xl p-4 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black md:col-span-2`}
+                        placeholder="Postal Code"
+                        value={formData.postal_code}
+                        onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className={`${isDark ? 'bg-white/[0.02] border-white/10' : 'bg-gray-50 border-black/10'} border rounded-[1.2rem] md:rounded-[1.6rem] p-4 md:p-5`}>
                   <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${themeTextSub} mb-2`}>Delivery Address</p>
-                  <p className={`text-[11px] md:text-sm font-bold ${themeTextMain}`}>{formData.address || 'No address selected'}</p>
+                  <p className={`text-[11px] md:text-sm font-bold ${themeTextMain}`}>{resolvedAddress || 'No address selected'}</p>
                   <p className={`mt-4 text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] ${themeTextSub}`}>Contact Number</p>
-                  <p className={`text-[11px] md:text-sm font-bold ${themeTextMain}`}>{formData.phone || 'No phone selected'}</p>
+                  <input
+                    type="text"
+                    className={`mt-1 w-full ${themeInput} rounded-xl p-3 text-[10px] md:text-xs outline-none focus:border-orange-600 transition-all font-black`}
+                    placeholder="Contact Number"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
                 </div>
 
                 <textarea 
