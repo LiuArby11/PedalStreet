@@ -34,6 +34,7 @@ Run these in Supabase SQL Editor:
 - `sql/profile_email_sync.sql`
 - `sql/profile_address_and_delivery_instructions.sql`
 - `sql/orders_payment_and_product_uniqueness.sql`
+- `sql/profile_signup_conflict_fix.sql`
 
 ## Implemented Behaviors (Defense Notes)
 

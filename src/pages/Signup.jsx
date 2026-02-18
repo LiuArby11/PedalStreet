@@ -57,11 +57,21 @@ export default function Signup({ darkMode }) {
     });
 
     if (authError) {
-      showModal("error", "REGISTRATION FAILED", authError.message);
+      const rawMessage = String(authError.message || '');
+      const isGenericDbSaveError = rawMessage.toLowerCase().includes('database error saving new user');
+      if (isGenericDbSaveError) {
+        showModal(
+          "error",
+          "REGISTRATION FAILED",
+          "Signup was blocked by database validation. Try a different username and make sure the email is not already registered."
+        );
+      } else {
+        showModal("error", "REGISTRATION FAILED", rawMessage);
+      }
       setLoading(false);
     } 
     else {
-      showModal("success", "ACCOUNT CREATED", "Please check your email, verify your account, then login.", "/login");
+      showModal("success", "ACCOUNT CREATED", "Please check your email, verify your account, then login. After login, complete your delivery address and phone in Profile.", "/login");
       setLoading(false);
     }
   };

@@ -12,15 +12,49 @@ export default function Login({ darkMode }) {
     open: false,
     type: "info",
     title: "",
-    message: ""
+    message: "",
+    redirectTo: null
   });
 
-  const showModal = (type, title, message) => {
-    setModal({ open: true, type, title, message });
+  const showModal = (type, title, message, redirectTo = null) => {
+    setModal({ open: true, type, title, message, redirectTo });
   };
 
   const closeModal = () => {
-    setModal({ ...modal, open: false });
+    const redirectTo = modal.redirectTo;
+    setModal({ ...modal, open: false, redirectTo: null });
+    if (redirectTo) navigate(redirectTo);
+  };
+
+  const needsDeliveryProfile = async (userId) => {
+    if (!userId) return false;
+
+    const contact = await supabase
+      .from('profiles')
+      .select('address, phone')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!contact.error && contact.data) {
+      const hasAddress = String(contact.data.address || '').trim().length > 0;
+      const hasPhone = String(contact.data.phone || '').trim().length > 0;
+      return !(hasAddress && hasPhone);
+    }
+
+    if (String(contact.error?.code || '') === '42703') {
+      const fallback = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!fallback.error && fallback.data) {
+        const hasPhone = String(fallback.data.phone || '').trim().length > 0;
+        return !hasPhone;
+      }
+    }
+
+    return false;
   };
 
   const lookupProfileByUsername = async (rawUsername) => {
@@ -76,7 +110,7 @@ export default function Login({ darkMode }) {
       return;
     }
 
-    const { error: authError } = await supabase.auth.signInWithPassword({ 
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ 
       email: loginEmail, 
       password 
     });
@@ -84,7 +118,18 @@ export default function Login({ darkMode }) {
     if (authError) {
       showModal("error", "VERIFICATION FAILED", authError.message);
     } else {
-      navigate('/');
+      const userId = authData?.user?.id;
+      const shouldPromptProfile = await needsDeliveryProfile(userId);
+      if (shouldPromptProfile) {
+        showModal(
+          "info",
+          "PROFILE SETUP RECOMMENDED",
+          "Please add your delivery address and phone in Profile before checkout.",
+          "/profile"
+        );
+      } else {
+        navigate('/');
+      }
     }
     setLoading(false);
   };
